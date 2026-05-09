@@ -1,332 +1,635 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kickoff ⚽</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Golden Boot ⚽</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet"/>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0a0a0f; color: #fff; font-family: 'DM Sans', sans-serif; }
-    input, textarea, select {
-      font-family: 'DM Sans', sans-serif;
-      background: #16161f;
-      border: 1.5px solid #2a2a3a;
-      color: #fff;
-      border-radius: 10px;
-      padding: 12px 14px;
-      width: 100%;
-      font-size: 15px;
-      outline: none;
-      transition: border 0.2s;
-    }
-    input:focus, textarea:focus, select:focus { border-color: #00e676; }
-    select option { background: #16161f; }
-    .btn {
-      font-family: 'Bebas Neue', sans-serif;
-      letter-spacing: 1.5px;
-      font-size: 17px;
-      border: none;
-      border-radius: 10px;
-      padding: 13px 28px;
-      cursor: pointer;
-      transition: transform 0.1s, opacity 0.2s;
-      width: 100%;
-    }
-    .btn:active { transform: scale(0.97); }
-    .btn-green { background: #00e676; color: #0a0a0f; }
-    .btn-outline { background: transparent; border: 1.5px solid #2a2a3a; color: #aaa; margin-top: 10px; }
-    .card {
-      background: #13131c;
-      border: 1px solid #1e1e2e;
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 14px;
-      cursor: pointer;
-      transition: border-color 0.2s, transform 0.15s;
-    }
-    .card:hover { border-color: #333; transform: translateY(-2px); }
-    .pill {
-      display: inline-block;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      padding: 3px 10px;
-      border-radius: 20px;
-    }
-    .nav { position: fixed; bottom: 0; left: 0; right: 0; background: #0d0d15; border-top: 1px solid #1a1a28; display: flex; justify-content: space-around; padding: 6px 0 12px; z-index: 100; }
-    .nav-tab { background: none; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 16px; color: #555; font-family: 'DM Sans', sans-serif; font-size: 12px; transition: color 0.2s; }
-    .nav-tab.active { color: #00e676; }
-    .nav-tab span { font-size: 20px; }
-    .progress-bar { background: #1e1e2e; border-radius: 99px; height: 6px; overflow: hidden; }
-    .progress-fill { height: 100%; border-radius: 99px; }
-    .heading { font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px; }
-    .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #00e676; color: #0a0a0f; padding: 12px 22px; border-radius: 12px; font-weight: 600; z-index: 999; font-size: 14px; white-space: nowrap; box-shadow: 0 8px 32px rgba(0,230,118,0.3); }
-    label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 6px; }
-    .field { margin-bottom: 16px; }
-    .level-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .level-btn { padding: 12px; border-radius: 10px; border: 1.5px solid #2a2a3a; background: #16161f; color: #aaa; cursor: pointer; font-weight: 500; font-size: 14px; font-family: 'DM Sans', sans-serif; transition: all 0.2s; }
-    .level-btn.selected { border-color: #00e676; background: rgba(0,230,118,0.08); color: #00e676; }
-    .format-grid { display: flex; gap: 8px; }
-    .format-btn { flex: 1; padding: 11px 6px; border-radius: 10px; border: 1.5px solid #2a2a3a; background: #16161f; color: #aaa; cursor: pointer; font-size: 13px; font-weight: 500; font-family: 'DM Sans', sans-serif; transition: all 0.2s; }
-    .player-row { display: flex; justify-content: space-between; align-items: center; background: #13131c; border-radius: 10px; padding: 12px 14px; border: 1px solid #1e1e2e; margin-bottom: 8px; }
-    .avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 4px; }
+    :root{--gold:#FFD700;--gold-light:#FFE55C;--gold-dark:#B8960C;--card:rgba(0,0,0,0.58);--border:rgba(255,215,0,0.13);--text:#f0f0f0;--muted:#6a8a6a;}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#0f1a0f;color:var(--text);font-family:'Barlow',sans-serif;overflow-x:hidden;}
+    .cage-bg{min-height:100vh;background-color:#0f1a0f;background-image:repeating-linear-gradient(0deg,transparent,transparent 18px,rgba(255,255,255,0.055) 18px,rgba(255,255,255,0.055) 19px),repeating-linear-gradient(90deg,transparent,transparent 18px,rgba(255,255,255,0.055) 18px,rgba(255,255,255,0.055) 19px);position:relative;}
+    .cage-bg::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background:radial-gradient(ellipse at 50% 0%,rgba(0,80,0,0.65) 0%,transparent 60%),radial-gradient(ellipse at 0% 50%,rgba(0,0,0,0.55) 0%,transparent 50%),radial-gradient(ellipse at 100% 50%,rgba(0,0,0,0.55) 0%,transparent 50%);}
+    .cage-inner{position:relative;z-index:1;padding-bottom:85px;}
+    .cage-frame{height:7px;background:repeating-linear-gradient(90deg,var(--gold) 0,var(--gold) 4px,transparent 4px,transparent 16px);opacity:0.5;}
+    .hdr{display:flex;justify-content:space-between;align-items:center;padding:13px 17px;border-bottom:1px solid rgba(255,215,0,0.18);background:rgba(0,0,0,0.52);position:relative;z-index:2;}
+    .logo{display:flex;align-items:center;gap:10px;}
+    .logo-text{font-family:'Playfair Display',serif;font-size:20px;color:var(--gold);}
+    .logo-sub{font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:1px;}
+    .hdr-btn{background:var(--gold);color:#000;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;}
+    .nav{position:fixed;bottom:0;left:0;right:0;background:rgba(4,8,4,0.97);backdrop-filter:blur(20px);border-top:1px solid rgba(255,215,0,0.12);display:flex;justify-content:space-around;padding:7px 0 14px;z-index:100;}
+    .ntab{display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;cursor:pointer;padding:4px 10px;color:#3a5a3a;font-size:9px;font-family:'Barlow',sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;}
+    .ntab.active{color:var(--gold);}
+    .ntab span{font-size:17px;}
+    .screen{display:none;padding:16px 16px 10px;max-width:480px;margin:0 auto;}
+    .screen.active{display:block;}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:13px;margin-bottom:11px;cursor:pointer;position:relative;overflow:hidden;transition:border-color 0.2s,transform 0.15s;}
+    .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,215,0,0.45),transparent);opacity:0;transition:opacity 0.3s;}
+    .card:hover::before{opacity:1;}
+    .card:hover{border-color:rgba(255,215,0,0.3);transform:translateY(-1px);}
+    .btn-gold{background:linear-gradient(135deg,var(--gold-light),var(--gold),var(--gold-dark));color:#000;border:none;border-radius:10px;padding:13px;width:100%;font-size:14px;font-weight:800;cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:1.5px;box-shadow:0 4px 20px rgba(255,215,0,0.25);margin-bottom:8px;}
+    .btn-dark{background:rgba(0,0,0,0.48);color:var(--muted);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px;width:100%;font-size:13px;cursor:pointer;font-family:'Barlow',sans-serif;margin-bottom:8px;}
+    .btn-dark:hover{border-color:var(--gold);color:var(--gold);}
+    .badge{display:inline-block;font-size:10px;font-weight:700;color:var(--gold-dark);background:rgba(255,215,0,0.1);border-radius:20px;padding:3px 9px;font-family:'Barlow Condensed',sans-serif;}
+    .gold{color:var(--gold);}
+    .muted{color:var(--muted);font-size:12px;}
+    .sec-title{font-family:'Playfair Display',serif;font-size:22px;color:#fff;margin-bottom:12px;}
+    .sec-title span{color:var(--gold);}
+    .bar-row{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:5px;}
+    .bar{background:rgba(255,255,255,0.08);border-radius:99px;height:4px;overflow:hidden;}
+    .bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--gold-dark),var(--gold));}
+    .meta{display:flex;gap:14px;font-size:11px;color:var(--muted);margin:7px 0;}
+    .filter-row{display:flex;gap:6px;margin-bottom:13px;flex-wrap:wrap;}
+    .chip{font-size:11px;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:5px 12px;cursor:pointer;background:rgba(0,0,0,0.38);color:var(--muted);font-family:'Barlow',sans-serif;}
+    .chip.active{border-color:var(--gold);color:var(--gold);background:rgba(255,215,0,0.08);}
+    .back-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;margin-bottom:13px;display:flex;align-items:center;gap:4px;padding:0;font-family:'Barlow',sans-serif;}
+    .avatar-circle{width:74px;height:74px;border-radius:50%;background:linear-gradient(135deg,#1a3a1a,#0a2a0a);border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:24px;font-weight:800;color:var(--gold);font-family:'Barlow Condensed',sans-serif;}
+    .stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0;}
+    .stat-card{background:rgba(0,0,0,0.5);border:1px solid rgba(255,215,0,0.1);border-radius:10px;padding:10px 8px;text-align:center;}
+    .stat-n{font-size:20px;font-weight:800;color:var(--gold);font-family:'Barlow Condensed',sans-serif;}
+    .stat-l{font-size:10px;color:var(--muted);margin-top:2px;}
+    .badges-row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px;}
+    .achieve{background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.18);border-radius:10px;padding:10px 8px;text-align:center;flex:1;min-width:58px;}
+    .achieve-icon{font-size:22px;margin-bottom:4px;}
+    .achieve-name{font-size:10px;color:var(--gold);}
+    .achieve-locked{opacity:0.28;filter:grayscale(1);}
+    .pitch-view{background:#1a4a1a;border:1px solid #2a6a2a;border-radius:12px;padding:12px 10px;margin:10px 0;text-align:center;}
+    .frow{display:flex;justify-content:center;gap:14px;margin:6px 0;}
+    .pdot{width:33px;height:33px;border-radius:50%;background:rgba(0,0,0,0.6);border:1.5px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-weight:800;}
+    .pdot.empty{border-style:dashed;border-color:#2a5a2a;color:#2a5a2a;}
+    .map-box{background:#0a1a0a;border:1px solid rgba(255,215,0,0.15);border-radius:12px;height:130px;position:relative;overflow:hidden;margin-bottom:10px;}
+    .map-grid{position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,transparent,transparent 20px,rgba(255,255,255,0.04) 20px,rgba(255,255,255,0.04) 21px),repeating-linear-gradient(90deg,transparent,transparent 20px,rgba(255,255,255,0.04) 20px,rgba(255,255,255,0.04) 21px);}
+    .map-pin{position:absolute;width:18px;height:18px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);cursor:pointer;}
+    .map-pin::after{content:'';position:absolute;width:7px;height:7px;background:#000;border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%);}
+    .chat-bubble{background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.07);border-radius:10px 10px 10px 2px;padding:9px 12px;margin-bottom:8px;max-width:82%;}
+    .chat-bubble.mine{background:rgba(255,215,0,0.1);border-color:rgba(255,215,0,0.2);border-radius:10px 10px 2px 10px;margin-left:auto;}
+    .chat-name{font-size:10px;color:var(--gold);margin-bottom:3px;font-weight:700;}
+    .chat-text{font-size:13px;color:#ddd;}
+    .chat-time{font-size:10px;color:#3a5a3a;margin-top:3px;text-align:right;}
+    .ai-card{background:rgba(255,215,0,0.04);border:1px solid rgba(255,215,0,0.18);border-radius:12px;padding:14px;margin-bottom:10px;}
+    .ai-label{font-size:10px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;font-family:'Barlow Condensed',sans-serif;}
+    .rating-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);}
+    .stars{display:flex;gap:3px;}
+    .star{font-size:18px;cursor:pointer;color:#2a4a2a;line-height:1;}
+    .star.on{color:var(--gold);}
+    .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--gold-light),var(--gold));color:#000;padding:11px 22px;border-radius:12px;font-weight:800;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;z-index:999;font-size:14px;box-shadow:0 8px 32px rgba(255,215,0,0.35);white-space:nowrap;}
+    .field{margin-bottom:13px;}
+    .field label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:6px;font-family:'Barlow Condensed',sans-serif;}
+    input,textarea,select{font-family:'Barlow',sans-serif;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:8px;padding:11px 13px;width:100%;font-size:13px;outline:none;}
+    input:focus,textarea:focus,select:focus{border-color:var(--gold);}
+    select option{background:#0f1a0f;}
+    ::-webkit-scrollbar{width:3px;}
+    ::-webkit-scrollbar-thumb{background:#2a4a2a;border-radius:3px;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+    .fade-up{animation:fadeUp 0.35s ease forwards;}
+    @keyframes shimmer{0%{background-position:-200% center;}100%{background-position:200% center;}}
+    .gold-shimmer{background:linear-gradient(90deg,var(--gold-dark),var(--gold-light),var(--gold-dark));background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 3s linear infinite;}
   </style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="text/babel">
-    const { useState } = React;
+<div id="root"></div>
+<script type="text/babel">
+const {useState} = React;
 
-    const POSITIONS = ["Goalkeeper", "Defender", "Midfielder", "Striker", "Any"];
-    const LEVELS = ["Beginner", "Casual", "Intermediate", "Competitive"];
-    const FORMATS = ["5-a-side", "7-a-side", "11-a-side"];
-    const FMT_COLORS = { "5-a-side": "#00e676", "7-a-side": "#29b6f6", "11-a-side": "#ff7043" };
-    const FMT_SLOTS = { "5-a-side": 10, "7-a-side": 14, "11-a-side": 22 };
+function Ball({size=44}) {
+  const id = "bc"+size;
+  return (
+    <svg width={size} height={size} viewBox="0 0 44 44" fill="none">
+      <defs><clipPath id={id}><circle cx="22" cy="22" r="20"/></clipPath></defs>
+      <circle cx="22" cy="22" r="20" fill="#f5f5f5"/>
+      <polygon points="22,5 28,11 26,18 22,20 18,18 16,11" fill="#111" clipPath={"url(#"+id+")"}/>
+      <polygon points="28,11 36,10 39,18 33,23 26,18" fill="#111" clipPath={"url(#"+id+")"}/>
+      <polygon points="33,23 39,18 41,27 37,33 30,30" fill="#111" clipPath={"url(#"+id+")"}/>
+      <polygon points="26,18 30,30 26,36 18,36 14,30 18,18" fill="#111" clipPath={"url(#"+id+")"}/>
+      <polygon points="18,18 14,30 7,27 5,18 11,13" fill="#111" clipPath={"url(#"+id+")"}/>
+      <polygon points="16,11 11,13 5,18 6,10 14,6" fill="#111" clipPath={"url(#"+id+")"}/>
+      <circle cx="22" cy="22" r="20" fill="none" stroke="rgba(255,215,0,0.45)" strokeWidth="1.5"/>
+      <ellipse cx="15" cy="13" rx="4" ry="2.5" fill="white" opacity="0.4" transform="rotate(-30 15 13)" clipPath={"url(#"+id+")"}/>
+    </svg>
+  );
+}
 
-    const INITIAL_GAMES = [
-      { id: 1, title: "Lunchtime Kickabout", format: "5-a-side", location: "Powerleague, Old Street", date: "2026-05-10", time: "12:30", players: [{ name: "Marcus T.", position: "Striker", level: "Casual" }, { name: "Dev P.", position: "Goalkeeper", level: "Intermediate" }, { name: "Liam O.", position: "Midfielder", level: "Casual" }], host: "Marcus T.", notes: "Bibs provided. Bring water." },
-      { id: 2, title: "Evening 7s", format: "7-a-side", location: "Goals Soccer, Wembley", date: "2026-05-11", time: "19:00", players: [{ name: "Jamie R.", position: "Defender", level: "Intermediate" }, { name: "Sam K.", position: "Midfielder", level: "Competitive" }], host: "Jamie R.", notes: "Competitive but friendly." },
-      { id: 3, title: "Weekend Warriors", format: "11-a-side", location: "Hackney Marshes, Pitch 4", date: "2026-05-12", time: "10:00", players: [{ name: "Tobi A.", position: "Goalkeeper", level: "Casual" }, { name: "Ben S.", position: "Striker", level: "Casual" }, { name: "Noah W.", position: "Defender", level: "Beginner" }], host: "Tobi A.", notes: "Muddy pitch likely!" },
-    ];
+const FMT_SLOTS = {"5-a-side":10,"7-a-side":14,"11-a-side":22};
+const PRICE = 9;
+const VENUES = ["Powerleague Shoreditch, EC2A","Goals Soccer Wimbledon, SW19","Hackney Marshes, E9","Goals Soccer Beckton, E6","Powerleague Fulham, SW6","Astro Wembley, HA9","Urban Football Stratford, E20","Powerleague Camden, NW1"];
+const DEMO_GAMES = [
+  {id:1,title:"Shoreditch Lunch Legends",format:"5-a-side",location:"Powerleague Shoreditch, EC2A",date:"2026-05-10",time:"12:30",players:[{name:"Marcus T.",pos:"Striker",level:"Casual"},{name:"Dev P.",pos:"Goalkeeper",level:"Intermediate"},{name:"Liam O.",pos:"Midfielder",level:"Casual"}],host:"Marcus T.",notes:"Bibs provided. Bring water!"},
+  {id:2,title:"East London Evening 7s",format:"7-a-side",location:"Goals Soccer Beckton, E6",date:"2026-05-11",time:"19:00",players:[{name:"Jamie R.",pos:"Defender",level:"Intermediate"},{name:"Sam K.",pos:"Midfielder",level:"Competitive"},{name:"Tyler B.",pos:"Striker",level:"Competitive"}],host:"Jamie R.",notes:"High intensity. All abilities welcome."},
+  {id:3,title:"Hackney Marshes Sunday 11s",format:"11-a-side",location:"Hackney Marshes, E9",date:"2026-05-12",time:"10:00",players:[{name:"Tobi A.",pos:"Goalkeeper",level:"Casual"},{name:"Ben S.",pos:"Striker",level:"Casual"},{name:"Noah W.",pos:"Defender",level:"Beginner"},{name:"Elias M.",pos:"Midfielder",level:"Intermediate"}],host:"Tobi A.",notes:"Sunday league vibes. Muddy pitch, great banter."},
+  {id:4,title:"Wembley Way Warriors",format:"7-a-side",location:"Astro Wembley, HA9",date:"2026-05-13",time:"18:00",players:[{name:"Rio F.",pos:"Defender",level:"Competitive"},{name:"Kai H.",pos:"Midfielder",level:"Intermediate"}],host:"Rio F.",notes:"Under the arch. Quality football."},
+];
 
-    function App() {
-      const [screen, setScreen] = useState("home");
-      const [profile, setProfile] = useState(null);
-      const [draft, setDraft] = useState({ name: "", position: "Any", level: "Casual" });
-      const [games, setGames] = useState(INITIAL_GAMES);
-      const [selected, setSelected] = useState(null);
-      const [newGame, setNewGame] = useState({ title: "", format: "5-a-side", location: "", date: "", time: "", notes: "" });
-      const [toast, setToast] = useState(null);
+function App() {
+  const [screen,setScreen] = useState("home");
+  const [games,setGames] = useState(DEMO_GAMES);
+  const [selected,setSelected] = useState(null);
+  const [filter,setFilter] = useState("All");
+  const [toast,setToast] = useState(null);
+  const [payScreen,setPayScreen] = useState(false);
+  const [payMethod,setPayMethod] = useState(null);
+  const [payDone,setPayDone] = useState(false);
+  const [profile] = useState({name:"Raj Johnson",pos:"Midfielder",level:"Intermediate"});
+  const [newGame,setNewGame] = useState({title:"",format:"5-a-side",location:"",date:"",time:"",notes:""});
+  const [chatMsg,setChatMsg] = useState("");
+  const [chatMsgs,setChatMsgs] = useState([
+    {name:"Marcus T.",text:"Everyone confirmed for Saturday? Bibs sorted!",time:"11:20",mine:false},
+    {name:"Dev P.",text:"I'm in. Bringing extra water too 💧",time:"11:24",mine:false},
+    {name:"You",text:"See you all there! Ready to run ⚽",time:"11:31",mine:true},
+    {name:"Liam O.",text:"Can't wait. Last week was quality",time:"11:35",mine:false},
+  ]);
+  const [ratings,setRatings] = useState({});
+  const [socialTab,setSocialTab] = useState("ratings");
 
-      function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2800); }
+  function go(s){setScreen(s);window.scrollTo(0,0);}
+  function showToast(m){setToast(m);setTimeout(()=>setToast(null),2500);}
+  const spots = g => FMT_SLOTS[g.format]-(g.players||[]).length;
+  const filtered = filter==="All"?games:games.filter(g=>g.format===filter);
 
-      function saveProfile() {
-        if (!draft.name.trim()) return showToast("Please enter your name.");
-        setProfile(draft);
-        showToast("Profile saved! Welcome, " + draft.name + " 🎉");
-        setScreen("browse");
-      }
+  function joinGame(game){
+    if((game.players||[]).find(p=>p.name===profile.name)) return showToast("You're already in this game!");
+    if(spots(game)<=0) return showToast("This game is full!");
+    const updated=games.map(g=>g.id===game.id?{...g,players:[...g.players,{name:profile.name,pos:"Midfielder",level:"Intermediate"}]}:g);
+    setGames(updated);
+    setSelected(updated.find(g=>g.id===game.id));
+    setPayDone(true);
+    setTimeout(()=>{setPayScreen(false);setPayDone(false);},2200);
+    showToast("You're in! See you on the pitch 🏆");
+  }
 
-      function createGame() {
-        if (!newGame.title || !newGame.location || !newGame.date || !newGame.time) return showToast("Please fill in all fields.");
-        if (!profile) return showToast("Set up your profile first!");
-        const game = { id: Date.now(), ...newGame, players: [{ name: profile.name, position: profile.position, level: profile.level }], host: profile.name };
-        setGames([game, ...games]);
-        setNewGame({ title: "", format: "5-a-side", location: "", date: "", time: "", notes: "" });
-        showToast("Game created! 🏟️");
-        setScreen("browse");
-      }
+  function createGame(){
+    if(!newGame.title||!newGame.location||!newGame.date||!newGame.time) return showToast("Please fill in all fields.");
+    const g={id:Date.now(),...newGame,players:[{name:profile.name,pos:"Midfielder",level:"Intermediate"}],host:profile.name};
+    setGames([g,...games]);
+    setNewGame({title:"",format:"5-a-side",location:"",date:"",time:"",notes:""});
+    showToast("Game created! 🏟️");
+    go("games");
+  }
 
-      function joinGame(game) {
-        if (!profile) return showToast("Set up your profile first!");
-        if (game.players.find(p => p.name === profile.name)) return showToast("You're already in this game.");
-        const slots = FMT_SLOTS[game.format];
-        if (game.players.length >= slots) return showToast("This game is full.");
-        const updated = games.map(g => g.id === game.id ? { ...g, players: [...g.players, { name: profile.name, position: profile.position, level: profile.level }] } : g);
-        setGames(updated);
-        setSelected(updated.find(g => g.id === game.id));
-        showToast("You joined the game! ⚽");
-      }
+  function sendChat(){
+    if(!chatMsg.trim()) return;
+    const t=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    setChatMsgs([...chatMsgs,{name:"You",text:chatMsg,time:t,mine:true}]);
+    setChatMsg("");
+  }
 
-      const spots = (g) => FMT_SLOTS[g.format] - g.players.length;
+  function ratePlayer(pname,idx){
+    setRatings({...ratings,[pname]:idx+1});
+  }
 
-      return (
-        <div style={{ minHeight: "100vh", paddingBottom: 80 }}>
-          {toast && <div className="toast">{toast}</div>}
+  // PAYMENT SUCCESS
+  if(payDone) return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:20,background:"#0f1a0f"}}>
+      <Ball size={90}/>
+      <div className="gold-shimmer" style={{fontFamily:"'Playfair Display',serif",fontSize:36}}>You're In!</div>
+      <div style={{color:"var(--muted)"}}>See you on the pitch, {profile.name}!</div>
+      <button className="btn-gold" style={{width:"auto",padding:"12px 28px",marginTop:10}} onClick={()=>{setPayScreen(false);setPayDone(false);go("games");}}>Back to Games</button>
+    </div>
+  );
 
-          {/* Header */}
-          <div style={{ padding: "24px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div className="heading" style={{ fontSize: 28, letterSpacing: 2 }}>⚽ KICKOFF</div>
-              <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>Find your game</div>
-            </div>
-            {profile && (
-              <button onClick={() => setScreen("profile")} style={{ background: "#16161f", border: "1.5px solid #2a2a3a", borderRadius: 10, padding: "8px 14px", cursor: "pointer", color: "#fff", textAlign: "left" }}>
-                <div style={{ fontSize: 11, color: "#555" }}>Playing as</div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{profile.name}</div>
-              </button>
-            )}
+  // PAYMENT SCREEN
+  if(payScreen && selected) return (
+    <div style={{minHeight:"100vh",background:"#0f1a0f",padding:"24px 18px 40px",maxWidth:480,margin:"0 auto"}}>
+      {toast && <div className="toast">{toast}</div>}
+      <button className="back-btn" onClick={()=>setPayScreen(false)}>← Back</button>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,marginBottom:4}}>Secure <span className="gold">Checkout</span></div>
+      <div style={{color:"var(--muted)",fontSize:13,marginBottom:20}}>Join: {selected.title}</div>
+      <div style={{background:"rgba(0,0,0,0.5)",border:"1px solid rgba(255,215,0,0.15)",borderRadius:12,padding:16,marginBottom:20}}>
+        {[["Game",selected.title],["Venue",selected.location],["Format",selected.format],["Date & Time",selected.date+" at "+selected.time]].map(([k,v])=>(
+          <div key={k} style={{display:"flex",justifyContent:"space-between",marginBottom:8,fontSize:13}}>
+            <span style={{color:"var(--muted)"}}>{k}</span>
+            <span style={{fontWeight:500,textAlign:"right",maxWidth:"60%"}}>{v}</span>
           </div>
-
-          <div style={{ padding: "20px", maxWidth: 480, margin: "0 auto" }}>
-
-            {/* HOME */}
-            {screen === "home" && (
-              <div>
-                <div style={{ marginTop: 32, marginBottom: 40 }}>
-                  <div className="heading" style={{ fontSize: 52, lineHeight: 1 }}>FIND YOUR<br /><span style={{ color: "#00e676" }}>NEXT GAME.</span></div>
-                  <div style={{ marginTop: 12, color: "#888", fontSize: 15, lineHeight: 1.6 }}>Join open football sessions near you. No team needed — just show up and play.</div>
-                </div>
-                <button className="btn btn-green" style={{ fontSize: 20, padding: "16px" }} onClick={() => setScreen("profile")}>Set Up My Profile</button>
-                <button className="btn btn-outline" onClick={() => setScreen("browse")}>Browse Games</button>
-                <div style={{ display: "flex", gap: 12, marginTop: 32 }}>
-                  {FORMATS.map(f => (
-                    <div key={f} style={{ flex: 1, background: "#13131c", border: "1px solid #1e1e2e", borderRadius: 12, padding: "14px 10px", textAlign: "center" }}>
-                      <div style={{ fontSize: 24 }}>{f === "5-a-side" ? "🥅" : f === "7-a-side" ? "⚡" : "🏟️"}</div>
-                      <div style={{ fontSize: 11, color: "#888", marginTop: 6 }}>{f}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* PROFILE */}
-            {screen === "profile" && (
-              <div>
-                <div className="heading" style={{ fontSize: 36, marginBottom: 4 }}>MY PROFILE</div>
-                <div style={{ color: "#555", fontSize: 13, marginBottom: 28 }}>Tell us about yourself so we can match you to the right games.</div>
-                <div className="field"><label>Your Name</label><input placeholder="e.g. Jamie R." value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></div>
-                <div className="field"><label>Preferred Position</label>
-                  <select value={draft.position} onChange={e => setDraft({ ...draft, position: e.target.value })}>
-                    {POSITIONS.map(p => <option key={p}>{p}</option>)}
-                  </select>
-                </div>
-                <div className="field"><label>Skill Level</label>
-                  <div className="level-grid">
-                    {LEVELS.map(l => <button key={l} className={`level-btn ${draft.level === l ? "selected" : ""}`} onClick={() => setDraft({ ...draft, level: l })}>{l}</button>)}
-                  </div>
-                </div>
-                <button className="btn btn-green" style={{ marginTop: 8 }} onClick={saveProfile}>Save Profile</button>
-              </div>
-            )}
-
-            {/* BROWSE */}
-            {screen === "browse" && (
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                  <div className="heading" style={{ fontSize: 36 }}>OPEN GAMES</div>
-                  <button className="btn btn-green" style={{ width: "auto", fontSize: 14, padding: "10px 16px" }} onClick={() => setScreen("create")}>+ Create</button>
-                </div>
-                {games.map(game => {
-                  const left = spots(game);
-                  const total = FMT_SLOTS[game.format];
-                  const pct = (game.players.length / total) * 100;
-                  const col = FMT_COLORS[game.format];
-                  const isJoined = profile && game.players.find(p => p.name === profile.name);
-                  return (
-                    <div key={game.id} className="card" onClick={() => { setSelected(game); setScreen("game"); }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 16 }}>{game.title}</div>
-                          <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>📍 {game.location}</div>
-                        </div>
-                        <span className="pill" style={{ background: col + "22", color: col }}>{game.format}</span>
-                      </div>
-                      <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 13, color: "#888" }}>
-                        <span>📅 {new Date(game.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
-                        <span>🕐 {game.time}</span>
-                      </div>
-                      <div style={{ marginTop: 14 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                          <span style={{ fontSize: 12, color: "#555" }}>{game.players.length} / {total} players</span>
-                          <span style={{ fontSize: 12, color: left === 0 ? "#ff5252" : left <= 2 ? "#ffab40" : "#00e676" }}>{left === 0 ? "FULL" : `${left} spots left`}</span>
-                        </div>
-                        <div className="progress-bar"><div className="progress-fill" style={{ width: pct + "%", background: left === 0 ? "#ff5252" : col }} /></div>
-                      </div>
-                      {isJoined && <div style={{ marginTop: 10, fontSize: 12, color: "#00e676", fontWeight: 600 }}>✓ You're in this game</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* CREATE */}
-            {screen === "create" && (
-              <div>
-                <div className="heading" style={{ fontSize: 36, marginBottom: 4 }}>CREATE GAME</div>
-                <div style={{ color: "#555", fontSize: 13, marginBottom: 24 }}>Set up your session and let others join.</div>
-                <div className="field"><label>Game Title</label><input placeholder="e.g. Tuesday Night Kickabout" value={newGame.title} onChange={e => setNewGame({ ...newGame, title: e.target.value })} /></div>
-                <div className="field"><label>Format</label>
-                  <div className="format-grid">
-                    {FORMATS.map(f => <button key={f} className="format-btn" style={{ borderColor: newGame.format === f ? FMT_COLORS[f] : "#2a2a3a", background: newGame.format === f ? FMT_COLORS[f] + "15" : "#16161f", color: newGame.format === f ? FMT_COLORS[f] : "#aaa" }} onClick={() => setNewGame({ ...newGame, format: f })}>{f}</button>)}
-                  </div>
-                </div>
-                <div className="field"><label>Location</label><input placeholder="e.g. Powerleague, Shoreditch" value={newGame.location} onChange={e => setNewGame({ ...newGame, location: e.target.value })} /></div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-                  <div><label>Date</label><input type="date" value={newGame.date} onChange={e => setNewGame({ ...newGame, date: e.target.value })} /></div>
-                  <div><label>Time</label><input type="time" value={newGame.time} onChange={e => setNewGame({ ...newGame, time: e.target.value })} /></div>
-                </div>
-                <div className="field"><label>Notes (optional)</label><textarea placeholder="e.g. Bibs provided, bring water..." rows={3} value={newGame.notes} onChange={e => setNewGame({ ...newGame, notes: e.target.value })} style={{ resize: "none" }} /></div>
-                <button className="btn btn-green" onClick={createGame}>Create Game</button>
-              </div>
-            )}
-
-            {/* GAME DETAIL */}
-            {screen === "game" && selected && (() => {
-              const game = games.find(g => g.id === selected.id) || selected;
-              const left = spots(game);
-              const total = FMT_SLOTS[game.format];
-              const col = FMT_COLORS[game.format];
-              const isJoined = profile && game.players.find(p => p.name === profile.name);
-              return (
-                <div>
-                  <button onClick={() => setScreen("browse")} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 14, padding: 0, marginBottom: 20 }}>← Back</button>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div className="heading" style={{ fontSize: 36, lineHeight: 1.1 }}>{game.title.toUpperCase()}</div>
-                    <span className="pill" style={{ background: col + "22", color: col, marginTop: 4 }}>{game.format}</span>
-                  </div>
-                  <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ color: "#888", fontSize: 14 }}>📍 {game.location}</div>
-                    <div style={{ color: "#888", fontSize: 14 }}>📅 {new Date(game.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} at {game.time}</div>
-                    <div style={{ color: "#888", fontSize: 14 }}>👤 Hosted by {game.host}</div>
-                    {game.notes && <div style={{ color: "#666", fontSize: 13, fontStyle: "italic" }}>"{game.notes}"</div>}
-                  </div>
-                  <div style={{ marginTop: 20, background: "#13131c", borderRadius: 14, padding: 16, border: "1px solid #1e1e2e" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                      <span style={{ fontWeight: 600, fontSize: 15 }}>{game.players.length} / {total} players</span>
-                      <span style={{ fontSize: 13, color: left === 0 ? "#ff5252" : left <= 2 ? "#ffab40" : "#00e676" }}>{left === 0 ? "FULL" : `${left} spots left`}</span>
-                    </div>
-                    <div className="progress-bar" style={{ height: 8 }}><div className="progress-fill" style={{ width: `${(game.players.length / total) * 100}%`, background: col }} /></div>
-                  </div>
-                  <div style={{ marginTop: 20 }}>
-                    <div className="heading" style={{ fontSize: 22, marginBottom: 12 }}>SQUAD</div>
-                    {game.players.map((p, i) => (
-                      <div key={i} className="player-row">
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div className="avatar" style={{ background: col + "22", color: col }}>{p.name.charAt(0)}</div>
-                          <div>
-                            <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name} {p.name === game.host && <span style={{ fontSize: 11, color: "#555" }}>(host)</span>}</div>
-                            <div style={{ fontSize: 12, color: "#555" }}>{p.position}</div>
-                          </div>
-                        </div>
-                        <span className="pill" style={{ background: "#1e1e2e", color: "#888" }}>{p.level}</span>
-                      </div>
-                    ))}
-                    {left > 0 && Array.from({ length: Math.min(left, 3) }).map((_, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: "#0f0f18", borderRadius: 10, padding: "12px 14px", border: "1px dashed #1e1e2e", marginBottom: 8 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#1a1a24", display: "flex", alignItems: "center", justifyContent: "center", color: "#333" }}>+</div>
-                        <span style={{ fontSize: 13, color: "#333" }}>Open spot</span>
-                      </div>
-                    ))}
-                  </div>
-                  {!isJoined && left > 0 && <button className="btn btn-green" style={{ marginTop: 24, fontSize: 20, padding: "16px" }} onClick={() => joinGame(game)}>Join This Game ⚽</button>}
-                  {isJoined && <div style={{ marginTop: 24, background: "rgba(0,230,118,0.08)", border: "1px solid rgba(0,230,118,0.2)", borderRadius: 14, padding: "16px", textAlign: "center" }}><div style={{ color: "#00e676", fontWeight: 600 }}>✓ You're in this game!</div><div style={{ fontSize: 13, color: "#555", marginTop: 4 }}>See you on the pitch.</div></div>}
-                  {left === 0 && !isJoined && <div style={{ marginTop: 24, background: "#1a1015", border: "1px solid #3a1a1a", borderRadius: 14, padding: "16px", textAlign: "center" }}><div style={{ color: "#ff5252", fontWeight: 600 }}>Game is full</div></div>}
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Bottom Nav */}
-          <nav className="nav">
-            {[{ id: "home", icon: "🏠", label: "Home" }, { id: "browse", icon: "🔍", label: "Games" }, { id: "create", icon: "➕", label: "Create" }, { id: "profile", icon: "👤", label: "Profile" }].map(tab => (
-              <button key={tab.id} className={`nav-tab ${screen === tab.id ? "active" : ""}`} onClick={() => setScreen(tab.id)}>
-                <span>{tab.icon}</span>{tab.label}
-              </button>
-            ))}
-          </nav>
+        ))}
+        <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",paddingTop:10,marginTop:4,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,letterSpacing:1}}>TOTAL DUE</span>
+          <span className="gold" style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800}}>£{PRICE}.00</span>
         </div>
-      );
-    }
+      </div>
+      <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:8,fontFamily:"'Barlow Condensed',sans-serif"}}>Payment Method</div>
+      {[{id:"apple",icon:"🍎",label:"Apple Pay",sub:"Pay with Face ID"},{id:"google",icon:"🟢",label:"Google Pay",sub:"Pay with Google account"},{id:"card",icon:"💳",label:"Credit / Debit Card",sub:"Visa, Mastercard, Amex"},{id:"paypal",icon:"🔵",label:"PayPal",sub:"Fast & secure checkout"}].map(m=>(
+        <div key={m.id} onClick={()=>setPayMethod(m.id)} style={{background:payMethod===m.id?"rgba(255,215,0,0.06)":"rgba(0,0,0,0.4)",border:`1px solid ${payMethod===m.id?"var(--gold)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:14,marginBottom:8,cursor:"pointer",display:"flex",alignItems:"center",gap:14}}>
+          <span style={{fontSize:24}}>{m.icon}</span>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:600,fontSize:14}}>{m.label}</div>
+            <div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{m.sub}</div>
+          </div>
+          {payMethod===m.id && <div style={{width:20,height:20,background:"var(--gold)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#000"}}>✓</div>}
+        </div>
+      ))}
+      <button className="btn-gold" style={{marginTop:16,fontSize:16,padding:"15px"}} onClick={()=>{if(!payMethod)return showToast("Please select a payment method.");joinGame(selected);}}>Pay £{PRICE}.00 — Join Game 🏆</button>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:10}}>
+        <span style={{fontSize:12}}>🔒</span>
+        <span style={{fontSize:12,color:"var(--muted)"}}>Secured by 256-bit SSL encryption</span>
+      </div>
+    </div>
+  );
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-  </script>
+  return (
+    <div className="cage-bg">
+      {toast && <div className="toast">{toast}</div>}
+      <div className="cage-inner">
+        <div className="cage-frame"/>
+
+        {/* HEADER */}
+        <div className="hdr">
+          <div className="logo">
+            <Ball size={40}/>
+            <div>
+              <div className="logo-text">Golden Boot</div>
+              <div className="logo-sub">Est. 2026 · London</div>
+            </div>
+          </div>
+          <button className="hdr-btn" onClick={()=>go("profile")}>My Profile</button>
+        </div>
+
+        {/* HOME */}
+        <div className={"screen fade-up"+(screen==="home"?" active":"")} id="s-home">
+          <div style={{textAlign:"center",padding:"18px 0 16px"}}>
+            <Ball size={100}/>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,lineHeight:1.2,margin:"12px 0 10px"}}>Find Your<br/><span className="gold-shimmer">Next Game.</span></div>
+            <div style={{color:"var(--muted)",fontSize:13,lineHeight:1.7}}>The global street football community.<br/>No team needed — just show up and play.</div>
+          </div>
+          <div style={{display:"flex",background:"rgba(0,0,0,0.5)",borderRadius:10,border:"1px solid rgba(255,215,0,0.12)",overflow:"hidden",marginBottom:14}}>
+            {[{n:"2,400+",l:"Players"},{n:"180+",l:"Games/week"},{n:"32",l:"Cities"}].map((s,i)=>(
+              <div key={i} style={{flex:1,padding:"11px 6px",textAlign:"center",borderRight:i<2?"1px solid rgba(255,255,255,0.06)":"none"}}>
+                <div className="gold" style={{fontSize:16,fontWeight:800,fontFamily:"'Barlow Condensed',sans-serif"}}>{s.n}</div>
+                <div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+          <button className="btn-gold" onClick={()=>go("games")}>Browse Games ⚽</button>
+          <button className="btn-dark" onClick={()=>go("ai")}>✨ AI — Find My Perfect Game</button>
+          <div style={{display:"flex",gap:8,marginTop:4}}>
+            {[{icon:"📍",label:"Find Pitch",s:"booking"},{icon:"👥",label:"Social",s:"social"},{icon:"👤",label:"Profile",s:"profile"}].map(item=>(
+              <div key={item.s} className="card" style={{flex:1,padding:"12px 8px",textAlign:"center",marginBottom:0}} onClick={()=>go(item.s)}>
+                <div style={{fontSize:22}}>{item.icon}</div>
+                <div style={{fontSize:11,color:"#aaa",marginTop:5}}>{item.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{marginTop:14,background:"rgba(0,0,0,0.5)",borderLeft:"2px solid var(--gold)",padding:"12px 14px",borderRadius:"0 8px 8px 0"}}>
+            <div style={{fontSize:12,fontStyle:"italic",color:"var(--muted)",lineHeight:1.7}}>"The secret is to believe in your dreams, in your potential that you can be like your idols."</div>
+            <div style={{fontSize:10,color:"var(--gold)",marginTop:6,letterSpacing:1,fontFamily:"'Barlow Condensed',sans-serif"}}>— Ronaldinho</div>
+          </div>
+        </div>
+
+        {/* GAMES */}
+        <div className={"screen fade-up"+(screen==="games"?" active":"")} id="s-games">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div className="sec-title">Open <span>Games</span></div>
+            <button className="hdr-btn" onClick={()=>go("create")}>+ Host</button>
+          </div>
+          <div className="filter-row">
+            {["All","5-a-side","7-a-side","11-a-side","Nearby"].map(f=>(
+              <button key={f} className={"chip"+(filter===f?" active":"")} onClick={()=>setFilter(f)}>{f}</button>
+            ))}
+          </div>
+          {filtered.map(game=>{
+            const left=spots(game); const total=FMT_SLOTS[game.format]; const pct=((game.players||[]).length/total)*100;
+            const joined=(game.players||[]).find(p=>p.name===profile.name);
+            return (
+              <div key={game.id} className="card" onClick={()=>{setSelected(game);go("gamedetail");}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div style={{flex:1,paddingRight:8}}>
+                    <div style={{fontWeight:600,fontSize:15,color:"#eee"}}>{game.title}</div>
+                    <div className="muted" style={{marginTop:3}}>📍 {game.location}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <span className="badge">{game.format}</span>
+                    <div className="gold" style={{fontSize:18,fontWeight:800,fontFamily:"'Barlow Condensed',sans-serif",marginTop:3}}>£{PRICE}</div>
+                  </div>
+                </div>
+                <div className="meta">
+                  <span>📅 {game.date}</span>
+                  <span>🕐 {game.time}</span>
+                  <span>⭐ 4.8 host</span>
+                </div>
+                <div className="bar-row">
+                  <span>{(game.players||[]).length}/{total} players</span>
+                  <span style={{color:left===0?"#c0392b":left<=2?"#e67e22":"var(--gold)"}}>{left===0?"FULL":`${left} spots left`}</span>
+                </div>
+                <div className="bar"><div className="bar-fill" style={{width:pct+"%",background:left===0?"#c0392b":"linear-gradient(90deg,var(--gold-dark),var(--gold))"}}/></div>
+                {joined && <div style={{marginTop:8,fontSize:11,color:"var(--gold)",fontWeight:700}}>🏆 You're in this game</div>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* GAME DETAIL */}
+        <div className={"screen fade-up"+(screen==="gamedetail"?" active":"")} id="s-gamedetail">
+          {selected && (()=>{
+            const game=games.find(g=>g.id===selected.id)||selected;
+            const left=spots(game); const total=FMT_SLOTS[game.format];
+            const joined=(game.players||[]).find(p=>p.name===profile.name);
+            return (
+              <>
+                <button className="back-btn" onClick={()=>go("games")}>← Back to Games</button>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:"#fff",flex:1,paddingRight:8,lineHeight:1.2}}>{game.title}</div>
+                  <div style={{textAlign:"right"}}>
+                    <span className="badge">{game.format}</span>
+                    <div className="gold" style={{fontSize:24,fontWeight:800,fontFamily:"'Barlow Condensed',sans-serif",marginTop:3}}>£{PRICE}</div>
+                    <div className="muted">per player</div>
+                  </div>
+                </div>
+                <div className="muted" style={{marginBottom:3}}>📍 {game.location}</div>
+                <div className="muted" style={{marginBottom:3}}>📅 {game.date} at {game.time}</div>
+                <div className="muted" style={{marginBottom:10}}>👤 Hosted by <strong style={{color:"var(--text)"}}>{game.host}</strong> <span className="gold">⭐ 4.8</span></div>
+                {game.notes && <div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,padding:"10px 12px",fontSize:12,color:"var(--muted)",fontStyle:"italic",marginBottom:12}}>"{game.notes}"</div>}
+
+                {/* Formation */}
+                <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:6,fontFamily:"'Barlow Condensed',sans-serif"}}>Team Sheet — 2-1-2 Formation</div>
+                <div className="pitch-view">
+                  <div style={{fontSize:9,color:"#2a5a2a",marginBottom:4,letterSpacing:1}}>ATTACK</div>
+                  <div className="frow"><div className="pdot">ST</div><div className="pdot empty">+</div></div>
+                  <div className="frow"><div className="pdot">MF</div></div>
+                  <div className="frow"><div className="pdot">DF</div><div className="pdot">DF</div></div>
+                  <div className="frow"><div className="pdot">GK</div></div>
+                  <div style={{fontSize:9,color:"#2a5a2a",marginTop:4,letterSpacing:1}}>DEFEND</div>
+                </div>
+
+                <div style={{background:"rgba(0,0,0,0.4)",borderRadius:12,padding:14,border:"1px solid rgba(255,255,255,0.06)",marginBottom:14}}>
+                  <div className="bar-row"><span style={{fontWeight:600,color:"#eee"}}>{(game.players||[]).length} / {total} players</span><span style={{color:left===0?"#c0392b":left<=2?"#e67e22":"var(--gold)"}}>{left===0?"FULL":`${left} spots left`}</span></div>
+                  <div className="bar" style={{height:7}}><div className="bar-fill" style={{width:`${((game.players||[]).length/total)*100}%`}}/></div>
+                </div>
+
+                <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10,fontFamily:"'Barlow Condensed',sans-serif"}}>The Squad</div>
+                {(game.players||[]).map((p,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(0,0,0,0.4)",borderRadius:9,padding:"10px 13px",border:"1px solid rgba(255,255,255,0.06)",marginBottom:7}}>
+                    <div style={{display:"flex",alignItems:"center",gap:11}}>
+                      <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,var(--gold-dark),var(--gold))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#000",fontFamily:"'Barlow Condensed',sans-serif"}}>{p.name.charAt(0)}</div>
+                      <div>
+                        <div style={{fontWeight:600,fontSize:13,color:"#eee"}}>{p.name} {p.name===game.host&&<span style={{fontSize:10,color:"var(--gold)"}}>★ Host</span>}</div>
+                        <div style={{fontSize:11,color:"var(--muted)"}}>{p.pos}</div>
+                      </div>
+                    </div>
+                    <span className="badge" style={{fontSize:10}}>{p.level}</span>
+                  </div>
+                ))}
+                {left>0 && Array.from({length:Math.min(left,2)}).map((_,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:11,background:"#0d160d",borderRadius:9,padding:"10px 13px",border:"1px dashed rgba(255,255,255,0.07)",marginBottom:7}}>
+                    <div style={{width:32,height:32,borderRadius:"50%",border:"1px dashed rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center",color:"#333",fontSize:16}}>+</div>
+                    <span style={{fontSize:12,color:"#333"}}>Open spot</span>
+                  </div>
+                ))}
+
+                <button className="btn-dark" onClick={()=>go("chat")} style={{marginTop:8}}>💬 Open Group Chat</button>
+                {!joined && left>0 && <button className="btn-gold" onClick={()=>{setPayScreen(true);setPayMethod(null);}}>Join for £{PRICE} 🏆</button>}
+                {joined && <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.2)",borderRadius:12,padding:16,textAlign:"center",marginTop:4}}><div style={{fontFamily:"'Barlow Condensed',sans-serif",color:"var(--gold)",fontSize:16,letterSpacing:1}}>🏆 YOU'RE IN THIS GAME!</div><div className="muted" style={{marginTop:4}}>See you on the pitch.</div></div>}
+                {left===0&&!joined && <div style={{background:"#1a0a0a",border:"1px solid #3a1a1a",borderRadius:12,padding:14,textAlign:"center",marginTop:4}}><div style={{color:"#c0392b",fontWeight:700}}>This game is full</div></div>}
+              </>
+            );
+          })()}
+        </div>
+
+        {/* CREATE GAME */}
+        <div className={"screen fade-up"+(screen==="create"?" active":"")} id="s-create">
+          <button className="back-btn" onClick={()=>go("games")}>← Back</button>
+          <div className="sec-title">Host a <span>Game</span></div>
+          <div style={{color:"var(--muted)",fontSize:13,marginBottom:18}}>Set up your session — friends see it in real time!</div>
+          <div className="field"><label>Game Title</label><input placeholder="e.g. Tuesday Night Ballers" value={newGame.title} onChange={e=>setNewGame({...newGame,title:e.target.value})}/></div>
+          <div className="field"><label>Format</label>
+            <div style={{display:"flex",gap:8}}>
+              {["5-a-side","7-a-side","11-a-side"].map(f=>(
+                <button key={f} onClick={()=>setNewGame({...newGame,format:f})} style={{flex:1,padding:"10px 6px",borderRadius:9,border:`1px solid ${newGame.format===f?"var(--gold)":"rgba(255,255,255,0.1)"}`,background:newGame.format===f?"rgba(255,215,0,0.08)":"rgba(0,0,0,0.4)",color:newGame.format===f?"var(--gold)":"var(--muted)",cursor:"pointer",fontSize:11,fontWeight:700,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:1}}>{f}</button>
+              ))}
+            </div>
+          </div>
+          <div className="field"><label>Venue</label>
+            <select value={newGame.location} onChange={e=>setNewGame({...newGame,location:e.target.value})}>
+              <option value="">Select a venue...</option>
+              {VENUES.map(v=><option key={v}>{v}</option>)}
+              <option value="custom">Other / Custom venue</option>
+            </select>
+          </div>
+          {newGame.location==="custom" && <div className="field"><input placeholder="Enter venue name & city" onChange={e=>setNewGame({...newGame,location:e.target.value})}/></div>}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+            <div><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:6,fontFamily:"'Barlow Condensed',sans-serif"}}>Date</label><input type="date" value={newGame.date} onChange={e=>setNewGame({...newGame,date:e.target.value})}/></div>
+            <div><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:6,fontFamily:"'Barlow Condensed',sans-serif"}}>Kick-off</label><input type="time" value={newGame.time} onChange={e=>setNewGame({...newGame,time:e.target.value})}/></div>
+          </div>
+          <div className="field"><label>Notes for Players</label><textarea placeholder="e.g. Bibs provided, bring water..." rows={3} value={newGame.notes} onChange={e=>setNewGame({...newGame,notes:e.target.value})} style={{resize:"none"}}/></div>
+          <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.18)",borderRadius:10,padding:12,marginBottom:14}}>
+            <div style={{fontSize:12,color:"var(--gold)",fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:1}}>💰 PLAYER FEE: £{PRICE} per player — collected at booking</div>
+          </div>
+          <button className="btn-gold" onClick={createGame}>Create Game 🏟️</button>
+        </div>
+
+        {/* BOOKING */}
+        <div className={"screen fade-up"+(screen==="booking"?" active":"")} id="s-booking">
+          <div className="sec-title">Find a <span>Pitch</span></div>
+          <div className="map-box">
+            <div className="map-grid"/>
+            <div className="map-pin" style={{top:"28%",left:"44%",background:"var(--gold)"}}/>
+            <div className="map-pin" style={{top:"52%",left:"66%",background:"#fff"}}/>
+            <div className="map-pin" style={{top:"62%",left:"24%",background:"var(--gold-light)"}}/>
+            <div style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,0.75)",borderRadius:6,padding:"4px 8px",fontSize:10,color:"var(--gold)"}}>3 pitches nearby</div>
+          </div>
+          {[{name:"Powerleague Shoreditch",dist:"0.3 miles · EC2A",price:"£45/hr",rating:"4.8",type:"5-a-side",avail:"Available today"},{name:"Hackney Marshes Pitch 4",dist:"1.2 miles · E9",price:"£30/hr",rating:"4.6",type:"11-a-side",avail:"Sat 10am free"}].map(p=>(
+            <div key={p.name} className="card">
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <div><div style={{fontWeight:600,fontSize:14,color:"#eee"}}>{p.name}</div><div className="muted">{p.dist}</div></div>
+                <div className="gold" style={{fontWeight:700,fontFamily:"'Barlow Condensed',sans-serif"}}>{p.price}</div>
+              </div>
+              <div className="meta"><span className="gold">⭐ {p.rating}</span><span>{p.type}</span><span>{p.avail}</span></div>
+            </div>
+          ))}
+          <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.2)",borderRadius:12,padding:14,marginBottom:14}}>
+            <div style={{fontSize:11,color:"var(--gold)",fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:1,marginBottom:10}}>💰 AUTO COST SPLIT</div>
+            {[["Pitch hire","£45.00"],["Players confirmed","5 of 10"]].map(([k,v])=>(
+              <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#aaa",marginBottom:5}}><span>{k}</span><span>{v}</span></div>
+            ))}
+            <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",paddingTop:10,marginTop:5,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontWeight:600,fontSize:13,color:"#eee"}}>Your share</span>
+              <span className="gold" style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:800}}>£{PRICE}.00</span>
+            </div>
+          </div>
+          <button className="btn-gold" onClick={()=>go("social")}>Confirm Booking — Pay £{PRICE}</button>
+        </div>
+
+        {/* SOCIAL */}
+        <div className={"screen fade-up"+(screen==="social"?" active":"")} id="s-social">
+          <div className="sec-title"><span>Social</span> Hub</div>
+          <div className="filter-row">
+            {["ratings","feed","leaderboard"].map(t=>(
+              <button key={t} className={"chip"+(socialTab===t?" active":"")} onClick={()=>setSocialTab(t)} style={{textTransform:"capitalize"}}>{t}</button>
+            ))}
+          </div>
+          {socialTab==="ratings" && (
+            <>
+              <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:10,fontFamily:"'Barlow Condensed',sans-serif"}}>Rate last match — Shoreditch 5s</div>
+              <div className="card">
+                {[{name:"Marcus T.",pos:"Striker"},{name:"Dev P.",pos:"Goalkeeper"},{name:"Liam O.",pos:"Midfielder"}].map(p=>(
+                  <div key={p.name} className="rating-row">
+                    <div>
+                      <div style={{fontSize:13,color:"#eee",fontWeight:600}}>{p.name}</div>
+                      <div className="muted">{p.pos}</div>
+                    </div>
+                    <div className="stars">
+                      {[0,1,2,3,4].map(i=>(
+                        <div key={i} className={"star"+(ratings[p.name]&&ratings[p.name]>i?" on":"")} onClick={()=>ratePlayer(p.name,i)}>★</div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,margin:"12px 0 8px",fontFamily:"'Barlow Condensed',sans-serif"}}>Rate attributes</div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {["Good sport","On time","Skillful","Team player","Fair play"].map(tag=>(
+                  <span key={tag} className="chip" style={{cursor:"pointer"}} onClick={e=>e.currentTarget.classList.toggle("active")}>{tag}</span>
+                ))}
+              </div>
+              <button className="btn-gold" style={{marginTop:14}} onClick={()=>showToast("Ratings submitted! 🏆")}>Submit Ratings</button>
+            </>
+          )}
+          {socialTab==="feed" && (
+            <>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                <div style={{background:"rgba(0,0,0,0.5)",border:"1px solid rgba(255,215,0,0.1)",borderRadius:10,height:90,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:5,cursor:"pointer"}}>
+                  <span style={{fontSize:22}}>📷</span>
+                  <div className="muted">Add photo</div>
+                </div>
+                {[{emoji:"⚽",title:"Shoreditch 5s",date:"10 May"},{emoji:"🏆",title:"Wembley 7s",date:"8 May"},{emoji:"🌧️",title:"Hackney 11s",date:"5 May"}].map(f=>(
+                  <div key={f.title} style={{background:"rgba(30,60,30,0.4)",border:"1px solid rgba(255,215,0,0.1)",borderRadius:10,height:90,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:4}}>
+                    <span style={{fontSize:22}}>{f.emoji}</span>
+                    <div style={{fontSize:11,color:"var(--gold)",fontWeight:600}}>{f.title}</div>
+                    <div className="muted">{f.date}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {socialTab==="leaderboard" && (
+            <>
+              <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:10,fontFamily:"'Barlow Condensed',sans-serif"}}>Top Trust Scores</div>
+              {[{name:"Marcus T.",score:"9.4",pos:"Striker",games:31},{name:"Jamie R.",score:"8.9",pos:"Defender",games:24},{name:"Tobi A.",score:"8.7",pos:"Goalkeeper",games:19},{name:"Raj Johnson",score:"8.7",pos:"Midfielder",games:18}].map((p,i)=>(
+                <div key={p.name} className="card" style={{padding:"11px 13px",display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:24,height:24,borderRadius:"50%",background:i===0?"var(--gold)":i===1?"#aaa":i===2?"#cd7f32":"rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:i<3?"#000":"#fff",flexShrink:0}}>{i+1}</div>
+                  <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,var(--gold-dark),var(--gold))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#000",flexShrink:0}}>{p.name.charAt(0)}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:13,color:"#eee"}}>{p.name}</div>
+                    <div className="muted">{p.pos} · {p.games} games</div>
+                  </div>
+                  <span className="gold" style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:800}}>{p.score} ⭐</span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        {/* CHAT */}
+        <div className={"screen fade-up"+(screen==="chat"?" active":"")} id="s-chat">
+          <button className="back-btn" onClick={()=>go("gamedetail")}>← Back</button>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:"#fff",marginBottom:14}}>Shoreditch 5s — <span className="gold">Group Chat</span></div>
+          <div style={{marginBottom:12}}>
+            {chatMsgs.map((m,i)=>(
+              <div key={i} className={"chat-bubble"+(m.mine?" mine":"")}>
+                {!m.mine && <div className="chat-name">{m.name}</div>}
+                <div className="chat-text">{m.text}</div>
+                <div className="chat-time">{m.time}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <input placeholder="Type a message..." value={chatMsg} onChange={e=>setChatMsg(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendChat()} style={{flex:1}}/>
+            <button onClick={sendChat} style={{background:"var(--gold)",color:"#000",border:"none",borderRadius:8,padding:"10px 14px",cursor:"pointer",fontSize:14,fontWeight:700}}>→</button>
+          </div>
+        </div>
+
+        {/* AI */}
+        <div className={"screen fade-up"+(screen==="ai"?" active":"")} id="s-ai">
+          <div className="sec-title">✨ <span>AI</span> Assistant</div>
+          <div className="ai-card">
+            <div className="ai-label">🎯 Smart Game Recommendation</div>
+            <div style={{fontSize:13,color:"#ddd",lineHeight:1.7}}>Based on your skill level and location, <span className="gold" style={{fontWeight:600}}>Shoreditch Lunch Legends</span> is your best match today. 3 players at your level are already joined.</div>
+            <button className="btn-gold" style={{marginTop:12,fontSize:12,padding:"9px"}} onClick={()=>{setSelected(DEMO_GAMES[0]);go("gamedetail");}}>View Game →</button>
+          </div>
+          <div className="ai-card">
+            <div className="ai-label">📈 Performance Trends</div>
+            <div style={{fontSize:12,color:"#aaa",marginBottom:10}}>Your last 5 games</div>
+            <div style={{display:"flex",alignItems:"flex-end",gap:5,height:54,marginBottom:8}}>
+              {[60,75,65,85,100].map((h,i)=>(
+                <div key={i} style={{flex:1,background:`rgba(255,215,0,${0.2+i*0.16})`,borderRadius:"3px 3px 0 0",height:h+"%"}}/>
+              ))}
+            </div>
+            <div style={{fontSize:11,color:"var(--muted)"}}>Rating improving — up <span className="gold">+0.6</span> this month 📈</div>
+          </div>
+          <div className="ai-card">
+            <div className="ai-label">⚖️ Auto-Balanced Teams</div>
+            <div style={{fontSize:13,color:"#ddd",lineHeight:1.7}}>For your next 5-a-side, AI has balanced teams by skill score. Average difference: <span className="gold">0.2 points</span> — fairest split possible.</div>
+          </div>
+          <div className="ai-card">
+            <div className="ai-label">🔔 Pre-Match Reminder</div>
+            <div style={{fontSize:13,color:"#ddd",lineHeight:1.7}}>You have a game tomorrow at <span className="gold">12:30</span>. Weather: ☀️ Sunny, 18°C. Pitch confirmed. 8 players joined.</div>
+            <div style={{display:"flex",gap:8,marginTop:10}}>
+              <button className="btn-gold" style={{fontSize:11,padding:"8px",marginBottom:0}} onClick={()=>showToast("Reminder set! ✅")}>Set Reminder</button>
+              <button className="btn-dark" style={{fontSize:11,padding:"8px",marginBottom:0}} onClick={()=>go("chat")}>Open Chat</button>
+            </div>
+          </div>
+        </div>
+
+        {/* PROFILE */}
+        <div className={"screen fade-up"+(screen==="profile"?" active":"")} id="s-profile">
+          <div style={{textAlign:"center",padding:"16px 0 12px"}}>
+            <div className="avatar-circle">RJ</div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#fff"}}>{profile.name}</div>
+            <div style={{fontSize:12,color:"var(--muted)",marginTop:4}}>Trust Score: <span className="gold">8.7 ⭐</span> · {profile.pos} · {profile.level}</div>
+          </div>
+          <div className="stats-grid">
+            {[{n:"24",l:"Games"},{n:"18",l:"Wins"},{n:"4.8",l:"Avg Rating"}].map(s=>(
+              <div key={s.l} className="stat-card"><div className="stat-n">{s.n}</div><div className="stat-l">{s.l}</div></div>
+            ))}
+          </div>
+          <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:8,fontFamily:"'Barlow Condensed',sans-serif"}}>Achievements</div>
+          <div className="badges-row">
+            {[{icon:"🏆",name:"Golden Boot"},{icon:"⚡",name:"Hat-trick"},{icon:"🤝",name:"Good Sport"},{icon:"👑",name:"Legend",locked:true},{icon:"🔥",name:"10 Streak",locked:true}].map(a=>(
+              <div key={a.name} className={"achieve"+(a.locked?" achieve-locked":"")}>
+                <div className="achieve-icon">{a.icon}</div>
+                <div className="achieve-name">{a.name}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:8,fontFamily:"'Barlow Condensed',sans-serif"}}>Performance Breakdown</div>
+          <div className="card" style={{padding:"13px 14px"}}>
+            {[{label:"Sportsmanship",val:92},{label:"Punctuality",val:88},{label:"Skill",val:79}].map(s=>(
+              <div key={s.label} style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#aaa",marginBottom:5}}>
+                  <span>{s.label}</span>
+                  <span className="gold">{(s.val/10).toFixed(1)}</span>
+                </div>
+                <div className="bar"><div className="bar-fill" style={{width:s.val+"%"}}/></div>
+              </div>
+            ))}
+          </div>
+          <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,margin:"12px 0 8px",fontFamily:"'Barlow Condensed',sans-serif"}}>My Games</div>
+          {games.filter(g=>(g.players||[]).find(p=>p.name===profile.name)).map(g=>(
+            <div key={g.id} className="card" style={{padding:"10px 13px"}} onClick={()=>{setSelected(g);go("gamedetail");}}>
+              <div style={{fontWeight:600,fontSize:13,color:"#eee"}}>{g.title}</div>
+              <div className="muted" style={{marginTop:3}}>📅 {g.date} · {g.format}</div>
+            </div>
+          ))}
+          {games.filter(g=>(g.players||[]).find(p=>p.name===profile.name)).length===0 && <div style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"20px 0"}}>No games yet — browse and join one! ⚽</div>}
+        </div>
+
+        {/* NAV */}
+        <div className="nav">
+          {[{id:"home",icon:"🏠",label:"Home"},{id:"games",icon:"⚽",label:"Games"},{id:"booking",icon:"📍",label:"Pitches"},{id:"social",icon:"👥",label:"Social"},{id:"ai",icon:"✨",label:"AI"},{id:"profile",icon:"👤",label:"Profile"}].map(tab=>(
+            <button key={tab.id} className={"ntab"+(screen===tab.id||screen==="gamedetail"&&tab.id==="games"||screen==="create"&&tab.id==="games"||screen==="chat"&&tab.id==="social"?" active":"")} onClick={()=>go(tab.id)}>
+              <span>{tab.icon}</span>{tab.label}
+            </button>
+          ))}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
 </body>
 </html>
