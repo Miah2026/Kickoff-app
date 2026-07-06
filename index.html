@@ -1046,9 +1046,10 @@ function App() {
 
         {/* NAV */}
         <div className="nav">
-          <div style={{textAlign:"center",padding:"6px 0 2px",borderTop:"1px solid rgba(255,255,255,0.04)"}}>
-            <span onClick={()=>go("privacy")} style={{fontSize:10,color:"#3a5a3a",cursor:"pointer",textDecoration:"underline",marginRight:12}}>Privacy Policy</span>
-            <span onClick={()=>go("terms")} style={{fontSize:10,color:"#3a5a3a",cursor:"pointer",textDecoration:"underline"}}>Terms & Conditions</span>
+          <div style={{textAlign:"center",padding:"4px 0 2px",borderTop:"1px solid rgba(255,255,255,0.04)",display:"flex",justifyContent:"center",gap:16,alignItems:"center"}}>
+            <span onClick={()=>go("privacy")} style={{fontSize:10,color:"#3a5a3a",cursor:"pointer",whiteSpace:"nowrap"}}>Privacy</span>
+            <span style={{fontSize:10,color:"#2a3a2a"}}>·</span>
+            <span onClick={()=>go("terms")} style={{fontSize:10,color:"#3a5a3a",cursor:"pointer",whiteSpace:"nowrap"}}>Terms</span>
           </div>
           {[{id:"home",icon:"🏠",label:"Home"},{id:"games",icon:"⚽",label:"Games"},{id:"pitches",icon:"📍",label:"Pitches"},{id:"social",icon:"👥",label:"Social"},{id:"ai",icon:"✨",label:"AI"},{id:"profile",icon:"👤",label:"Profile"}].map(tab=>(
             <button key={tab.id} className={"ntab"+(screen===tab.id||screen==="gamedetail"&&tab.id==="games"||screen==="create"&&tab.id==="games"||screen==="chat"&&tab.id==="games"||screen==="auth"&&tab.id==="profile"?" active":"")} onClick={()=>go(tab.id)}>
