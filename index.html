@@ -242,6 +242,7 @@ function App() {
   const [authForm,setAuthForm]=useState({name:"",email:"",password:""});
   const [authError,setAuthError]=useState("");
   const [termsAgreed,setTermsAgreed]=useState(false);
+  const [prevScreen,setPrevScreen]=useState("auth");
   const [newGame,setNewGame]=useState({title:"",format:"5-a-side",location:"",date:"",time:"",notes:""});
   const [socialTab,setSocialTab]=useState("ratings");
   const [ratings,setRatings]=useState({});
@@ -507,7 +508,7 @@ function App() {
     return p;
   }
 
-  function go(s){setScreen(s);window.scrollTo(0,0);if(window.trackScreen)window.trackScreen(s);}
+  function go(s,from){setPrevScreen(from||screen);setScreen(s);window.scrollTo(0,0);if(window.trackScreen)window.trackScreen(s);}
   function showToast(m){setToast(m);setTimeout(()=>setToast(null),3000);}
   const spots=g=>FMT_SLOTS[g.format]-((g.players||[]).length);
   const isJoined=game=>user&&(game.players||[]).find(p=>p.uid===user.uid);
@@ -988,7 +989,7 @@ function App() {
 
         {/* PRIVACY POLICY SCREEN */}
         <div className={"screen fade-up"+(screen==="privacy"?" active":"")} id="s-privacy">
-          <button className="back-btn" onClick={()=>history.back?history.back():go("auth")}>← Back</button>
+          <button className="back-btn" onClick={()=>go(prevScreen)}>← Back</button>
           <div className="sec-title">Privacy <span>Policy</span></div>
           <div style={{color:"var(--muted)",fontSize:12,marginBottom:16}}>Last updated: July 2026 · Miah & Co Consultancy</div>
           {[
@@ -1016,7 +1017,7 @@ function App() {
 
         {/* TERMS & CONDITIONS SCREEN */}
         <div className={"screen fade-up"+(screen==="terms"?" active":"")} id="s-terms">
-          <button className="back-btn" onClick={()=>history.back?history.back():go("auth")}>← Back</button>
+          <button className="back-btn" onClick={()=>go(prevScreen)}>← Back</button>
           <div className="sec-title">Terms & <span>Conditions</span></div>
           <div style={{color:"var(--muted)",fontSize:12,marginBottom:16}}>Last updated: July 2026 · Governed by English law</div>
           {[
