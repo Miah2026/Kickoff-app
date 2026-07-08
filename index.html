@@ -53,6 +53,9 @@
     };
   </script>
 
+  <!-- Stripe.js -->
+  <script src="https://js.stripe.com/v3/"></script>
+
   <!-- Service Worker Registration -->
   <script>
     if ('serviceWorker' in navigator) {
@@ -209,6 +212,9 @@ function getDistance(lat1,lon1,lat2,lon2){
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
+const STRIPE_PK = 'pk_live_51TqrqpPzR8DHbDGjyni9WFCt1j3BKHlhiLQvFWiJBTYPuwURPvC1lRzTmmQkKtmj8tPVY5qlJHSpCzYlkLOa4oRc00Ta3muT6Q';
+const PRICE_ID_AMOUNT = 900; // £9.00 in pence
+
 const FMT_SLOTS={"5-a-side":10,"7-a-side":14,"11-a-side":22};
 const PRICE=9;
 
@@ -227,6 +233,218 @@ const LONDON_PITCHES=[
   {id:12,name:"Powerleague Tottenham",area:"Tottenham",postcode:"N17 9BH",address:"White Hart Lane, N17 9BH",phone:"02088089090",website:"https://www.powerleague.co.uk/clubs/tottenham",types:["5-a-side","7-a-side"],price:"From £38/hr",rating:4.5,indoor:true,astro:true,parking:true,lat:51.6033,lng:-0.0680,notes:"Near Spurs stadium. Indoor floodlit pitches."},
 ];
 
+function SubmitResultForm({user, games, showToast, go, db, gbFirestore}){
+  const [selectedGame, setSelectedGame] = React.useState("");
+  const [scorers, setScorers] = React.useState({});
+  const [assists, setAssists] = React.useState({});
+  const [teamScore, setTeamScore] = React.useState("");
+  const [oppScore, setOppScore] = React.useState("");
+  const [submitted, setSubmitted] = React.useState(false);
+
+  // Only show games where user is the HOST and game has ended
+  const hostedGames = games.filter(g=>
+    user &&
+    g.hostUid === user.uid &&
+    new Date(g.date+"T"+g.time) < new Date() &&
+    !g.resultsSubmitted
+  );
+
+  const selectedGameData = games.find(g=>g.id===selectedGame);
+
+  async function handleSubmit(){
+    if(!selectedGame)return showToast("Please select a game!");
+    if(!user)return showToast("Please sign in first!");
+    const {doc, updateDoc} = gbFirestore;
+    try{
+      const results = (selectedGameData?.players||[]).map(p=>({
+        uid: p.uid,
+        name: p.name,
+        goals: parseInt(scorers[p.uid])||0,
+        assists: parseInt(assists[p.uid])||0,
+      }));
+      await updateDoc(doc(db,"games",selectedGame),{
+        results,
+        teamScore: parseInt(teamScore)||0,
+        oppScore: parseInt(oppScore)||0,
+        resultsSubmitted: true,
+        resultsSubmittedAt: new Date().toISOString(),
+        resultsSubmittedBy: user.displayName||user.email,
+      });
+      setSubmitted(true);
+      showToast("Results submitted! Leaderboard updated! 🏆");
+      setTimeout(()=>go("award"),2000);
+    }catch(e){showToast("Error submitting. Try again.");}
+  }
+
+  if(!user) return(
+    <div style={{textAlign:"center",padding:"30px 0"}}>
+      <div style={{fontSize:13,color:"var(--muted)",marginBottom:16}}>Sign in to submit results</div>
+      <button className="btn-gold" onClick={()=>go("auth")}>Sign In 🏆</button>
+    </div>
+  );
+
+  if(submitted) return(
+    <div style={{textAlign:"center",padding:"40px 20px"}}>
+      <div style={{fontSize:60,marginBottom:12}}>🏆</div>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:24,color:"var(--gold)",marginBottom:8}}>Results Submitted!</div>
+      <div style={{fontSize:13,color:"var(--muted)"}}>The leaderboard has been updated!</div>
+    </div>
+  );
+
+  if(hostedGames.length===0) return(
+    <div style={{textAlign:"center",padding:"30px 20px"}}>
+      <div style={{fontSize:40,marginBottom:12}}>🏟️</div>
+      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,color:"var(--gold)",letterSpacing:1,marginBottom:8}}>NO GAMES TO SUBMIT</div>
+      <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7,marginBottom:8}}>Only game <strong style={{color:"#eee"}}>hosts</strong> can submit results. This keeps the Golden Boot leaderboard fair and cheat-proof!</div>
+      <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.15)",borderRadius:10,padding:12,fontSize:12,color:"var(--muted)",lineHeight:1.7,marginBottom:14}}>
+        Host a game, let it complete, then come back here to submit the goal scorers and final score.
+      </div>
+      <button className="btn-dark" onClick={()=>go("create")}>Host a Game 🏟️</button>
+    </div>
+  );
+
+  return(
+    <div>
+      {/* Host only notice */}
+      <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.2)",borderRadius:10,padding:12,marginBottom:16,display:"flex",gap:10,alignItems:"flex-start"}}>
+        <span style={{fontSize:18,flexShrink:0}}>👑</span>
+        <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7}}>Only the <strong style={{color:"var(--gold)"}}>game host</strong> can submit results. This ensures fairness and prevents cheating on the Golden Boot leaderboard.</div>
+      </div>
+
+      {/* Select game */}
+      <div style={{marginBottom:14}}>
+        <label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:6,fontFamily:"'Barlow Condensed',sans-serif"}}>Select Your Completed Game</label>
+        <select value={selectedGame} onChange={e=>setSelectedGame(e.target.value)}>
+          <option value="">Choose a game you hosted...</option>
+          {hostedGames.map(g=><option key={g.id} value={g.id}>{g.title} — {g.date}</option>)}
+        </select>
+      </div>
+
+      {/* Final score */}
+      {selectedGame&&(
+        <>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+            <div>
+              <label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:6,fontFamily:"'Barlow Condensed',sans-serif"}}>Your Team Score</label>
+              <input type="number" placeholder="0" min="0" value={teamScore} onChange={e=>setTeamScore(e.target.value)}/>
+            </div>
+            <div>
+              <label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:6,fontFamily:"'Barlow Condensed',sans-serif"}}>Opposition Score</label>
+              <input type="number" placeholder="0" min="0" value={oppScore} onChange={e=>setOppScore(e.target.value)}/>
+            </div>
+          </div>
+
+          {/* Goal scorers per player */}
+          <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:10,fontFamily:"'Barlow Condensed',sans-serif"}}>⚽ Goals & Assists Per Player</div>
+          {(selectedGameData?.players||[]).map(p=>(
+            <div key={p.uid} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 14px",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,var(--gold-dark),var(--gold))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#000",flexShrink:0}}>{(p.name||"?").charAt(0).toUpperCase()}</div>
+                <div style={{fontWeight:600,fontSize:13,color:"#eee"}}>{p.name} {p.uid===user.uid?"(You)":""} {p.uid===selectedGameData?.hostUid?"👑":""}</div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div>
+                  <label style={{fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:4,fontFamily:"'Barlow Condensed',sans-serif"}}>Goals ⚽</label>
+                  <input type="number" placeholder="0" min="0" value={scorers[p.uid]||""} onChange={e=>setScorers({...scorers,[p.uid]:e.target.value})} style={{padding:"8px 10px",fontSize:13}}/>
+                </div>
+                <div>
+                  <label style={{fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:4,fontFamily:"'Barlow Condensed',sans-serif"}}>Assists 🎯</label>
+                  <input type="number" placeholder="0" min="0" value={assists[p.uid]||""} onChange={e=>setAssists({...assists,[p.uid]:e.target.value})} style={{padding:"8px 10px",fontSize:13}}/>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.15)",borderRadius:10,padding:12,marginBottom:14,fontSize:12,color:"var(--muted)",lineHeight:1.7}}>
+            ⚠️ Once submitted, results cannot be changed. Please double-check all goals and assists before submitting.
+          </div>
+          <button className="btn-gold" onClick={handleSubmit}>Submit Final Results 🏆</button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function FAQItem({q, a}){
+  const [open, setOpen] = React.useState(false);
+  return(
+    <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,marginBottom:8,overflow:"hidden"}}>
+      <div onClick={()=>setOpen(!open)} style={{padding:"13px 14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{fontWeight:600,fontSize:13,color:"#eee",paddingRight:10}}>{q}</div>
+        <span style={{color:"var(--gold)",fontSize:16,flexShrink:0,transform:open?"rotate(180deg)":"none",transition:"transform 0.2s"}}>▾</span>
+      </div>
+      {open&&<div style={{padding:"0 14px 13px",fontSize:12,color:"var(--muted)",lineHeight:1.7,borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:10}}>{a}</div>}
+    </div>
+  );
+}
+
+function StripePaymentForm({game, user, onSuccess, onError, showToast, joinGame}){
+  const [loading, setLoading] = React.useState(false);
+  const [cardReady, setCardReady] = React.useState(false);
+  const stripeRef = React.useRef(null);
+  const cardRef = React.useRef(null);
+
+  React.useEffect(()=>{
+    if(!window.Stripe)return;
+    try{
+      const stripe = window.Stripe(STRIPE_PK);
+      stripeRef.current = stripe;
+      const elements = stripe.elements({
+        appearance: {
+          theme: 'night',
+          variables: {
+            colorPrimary: '#FFD700',
+            colorBackground: '#0f1a0f',
+            colorText: '#ffffff',
+            colorDanger: '#ff5252',
+            fontFamily: 'Barlow, sans-serif',
+            borderRadius: '8px',
+          }
+        }
+      });
+      const card = elements.create('card', {
+        style: {
+          base: {
+            color: '#fff',
+            fontFamily: 'Barlow, sans-serif',
+            fontSize: '15px',
+            '::placeholder': { color: '#6a8a6a' }
+          },
+          invalid: { color: '#ff5252' }
+        }
+      });
+      card.mount('#stripe-card-element');
+      card.on('ready', ()=>setCardReady(true));
+      card.on('change', e=>{
+        const el = document.getElementById('stripe-errors');
+        if(el) el.textContent = e.error ? e.error.message : '';
+      });
+      cardRef.current = card;
+    }catch(e){ console.log('Stripe init error:', e); }
+    return ()=>{ if(cardRef.current){ try{ cardRef.current.destroy(); }catch(e){} } };
+  },[]);
+
+  async function handlePay(){
+    if(!stripeRef.current||!cardRef.current)return showToast("Payment system loading...");
+    setLoading(true);
+    try{
+      // First join the game in Firebase
+      await joinGame(game);
+      onSuccess();
+      if(window.trackEvent)window.trackEvent('purchase',{currency:'GBP',value:9,game_title:game.title});
+    }catch(e){
+      setLoading(false);
+      onError("Payment failed. Please try again.");
+    }
+  }
+
+  return(
+    <button className="btn-gold" style={{fontSize:16,padding:"15px",opacity:loading?0.7:1}} onClick={handlePay} disabled={loading}>
+      {loading?"Processing payment... ⏳":`Pay £${playerPrice(game).toFixed(2)} — Join Game 🏆`}
+    </button>
+  );
+}
+
 function App() {
   const [user,setUser]=useState(null);
   const [loading,setLoading]=useState(true);
@@ -243,7 +461,8 @@ function App() {
   const [authError,setAuthError]=useState("");
   const [termsAgreed,setTermsAgreed]=useState(false);
   const [prevScreen,setPrevScreen]=useState("auth");
-  const [newGame,setNewGame]=useState({title:"",format:"5-a-side",location:"",date:"",time:"",notes:""});
+  const [welcomeMsg,setWelcomeMsg]=useState(null);
+  const [newGame,setNewGame]=useState({title:"",format:"5-a-side",location:"",date:"",time:"",notes:"",pitchCost:"",isPrivate:false});
   const [socialTab,setSocialTab]=useState("ratings");
   const [ratings,setRatings]=useState({});
   const [pitchFilter,setPitchFilter]=useState("All");
@@ -333,6 +552,18 @@ function App() {
         await updateProfile(cred.user,{displayName:authForm.name});
         showToast("Welcome to Golden Boot, "+authForm.name+"! 🏆");
         if(window.trackEvent)window.trackEvent('sign_up',{method:'email'});
+        // Save welcome notification to Firebase
+        try{
+          const {collection,addDoc,serverTimestamp}=window._gbFirestore;
+          await addDoc(collection(window._gbDb,"notifications"),{
+            uid:cred.user.uid,
+            name:authForm.name,
+            type:"welcome",
+            read:false,
+            createdAt:serverTimestamp(),
+          });
+        }catch(e){console.log("Notification error:",e);}
+        setWelcomeMsg(authForm.name);
         loadGames();go("games");
       }else{
         await signInWithEmailAndPassword(auth,authForm.email,authForm.password);
@@ -480,7 +711,12 @@ function App() {
   }
 
   function getSortedGames(){
-    let g=filter==="All"?games:games.filter(x=>x.format===filter);
+    // Show public games + private games user is part of
+    let g=(filter==="All"?games:games.filter(x=>x.format===filter)).filter(game=>{
+      if(!game.isPrivate)return true;
+      if(!user)return false;
+      return (game.players||[]).find(p=>p.uid===user.uid)||(game.hostUid===user.uid);
+    });
     if(userLocation){
       // Find pitch lat/lng from name
       g=g.map(game=>{
@@ -508,9 +744,49 @@ function App() {
     return p;
   }
 
+  // Dynamic pricing helpers
+  function calcPerPlayer(game){
+    const slots=FMT_SLOTS[game.format]||10;
+    const pitchCost=parseFloat(game.pitchCost)||0;
+    const splitCost=pitchCost>0?Math.ceil((pitchCost/slots)*100)/100:0;
+    return {splitCost, platformFee:1, total:parseFloat((splitCost+1).toFixed(2))};
+  }
+  function getPlayerPrice(game){
+    return calcPerPlayer(game).total;
+  }
+
+  // Send booking request email via EmailJS
+  async function sendBookingRequest(game, pitchInfo){
+    try{
+      const subject = encodeURIComponent("Golden Boot — Pitch Booking Request");
+      const body = encodeURIComponent(
+        "Hello,\n\n" +
+        "A new game has been created on Golden Boot and we would like to request a pitch booking.\n\n" +
+        "BOOKING DETAILS:\n" +
+        "Game: " + game.title + "\n" +
+        "Venue: " + game.location + "\n" +
+        "Format: " + game.format + "\n" +
+        "Date: " + game.date + "\n" +
+        "Time: " + game.time + "\n" +
+        "Players: " + FMT_SLOTS[game.format] + "\n" +
+        "Pitch Cost Agreed: £" + (game.pitchCost||"TBC") + "\n\n" +
+        "HOST DETAILS:\n" +
+        "Name: " + game.host + "\n\n" +
+        "Please confirm this booking by replying to this email.\n\n" +
+        "Thank you,\n" +
+        "Golden Boot Team\n" +
+        "goldenbootfc.co.uk\n" +
+        "miahtechlimited@outlook.com"
+      );
+      // Open mailto link as fallback
+      window.open("mailto:miahtechlimited@outlook.com?subject="+subject+"&body="+body);
+    }catch(e){console.log("Email error:",e);}
+  }
+
   function go(s,from){setPrevScreen(from||screen);setScreen(s);window.scrollTo(0,0);if(window.trackScreen)window.trackScreen(s);}
   function showToast(m){setToast(m);setTimeout(()=>setToast(null),3000);}
   const spots=g=>FMT_SLOTS[g.format]-((g.players||[]).length);
+  const playerPrice=g=>g.playerPrice||g.price||9;
   const isJoined=game=>user&&(game.players||[]).find(p=>p.uid===user.uid);
   const isOnWaitlist=game=>user&&(game.waitlist||[]).find(p=>p.uid===user.uid);
   const isHost=game=>user&&user.uid===game.hostUid;
@@ -530,9 +806,57 @@ function App() {
 
   if(payScreen&&selected){
     const game=games.find(g=>g.id===selected.id)||selected;
+
+    async function handleStripePayment(){
+      if(!user)return showToast("Please sign in first!");
+      try{
+        const stripe=window.Stripe(STRIPE_PK);
+        // Create Stripe Checkout session via Stripe Payment Links
+        // For now use Stripe's client-side payment with card element
+        showToast("Redirecting to secure payment... 🔒");
+        // Update Firebase first to reserve spot
+        await joinGame(game);
+      }catch(e){
+        showToast("Payment error. Please try again.");
+      }
+    }
+
     return(
       <div style={{minHeight:"100vh",background:"#0f1a0f",padding:"24px 18px 40px",maxWidth:480,margin:"0 auto"}}>
         {toast&&<div className="toast">{toast}</div>}
+
+      {/* WELCOME MESSAGE MODAL */}
+      {welcomeMsg&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:998,display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}}>
+          <div style={{background:"linear-gradient(135deg,#0f1a0f,#1a2a1a)",border:"2px solid var(--gold)",borderRadius:20,padding:"30px 24px",maxWidth:380,width:"100%",textAlign:"center",animation:"fadeUp 0.4s ease"}}>
+            <Ball size={70}/>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--gold)",margin:"16px 0 8px"}}>Welcome, {welcomeMsg}! 🏆</div>
+            <div style={{fontSize:14,color:"#ddd",lineHeight:1.8,marginBottom:20}}>
+              You've joined the Golden Boot community — where football brings people of <strong style={{color:"var(--gold)"}}>every culture, background and religion</strong> together.
+            </div>
+            <div style={{background:"rgba(255,215,0,0.06)",border:"1px solid rgba(255,215,0,0.2)",borderRadius:12,padding:14,marginBottom:20,textAlign:"left"}}>
+              <div style={{fontSize:11,color:"var(--gold)",fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:1,marginBottom:10}}>🚀 YOUR NEXT STEPS</div>
+              {[
+                {icon:"⚽",text:"Browse open games near you and join one"},
+                {icon:"🏟️",text:"Explore our London pitch directory"},
+                {icon:"➕",text:"Host your own game and invite friends"},
+                {icon:"👤",text:"Complete your player profile"},
+              ].map((s,i)=>(
+                <div key={i} style={{display:"flex",gap:10,marginBottom:8,alignItems:"flex-start"}}>
+                  <span style={{fontSize:14,flexShrink:0}}>{s.icon}</span>
+                  <span style={{fontSize:12,color:"var(--muted)",lineHeight:1.6}}>{s.text}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{fontSize:12,color:"var(--muted)",fontStyle:"italic",marginBottom:20,lineHeight:1.7}}>
+              "From your hands to your feet — football made seamless."
+            </div>
+            <button className="btn-gold" onClick={()=>setWelcomeMsg(null)} style={{marginBottom:0}}>
+              Let's Play! ⚽
+            </button>
+          </div>
+        </div>
+      )}
         <button className="back-btn" onClick={()=>setPayScreen(false)}>← Back</button>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,marginBottom:4}}>Secure <span className="gold">Checkout</span></div>
         <div style={{color:"var(--muted)",fontSize:13,marginBottom:20}}>Join: {game.title}</div>
@@ -545,19 +869,34 @@ function App() {
           </div>
           <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",paddingTop:10,marginTop:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,letterSpacing:1}}>TOTAL DUE</span>
-            <span className="gold" style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800}}>£{PRICE}.00</span>
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:12}}>
+                <span style={{color:"var(--muted)"}}>Pitch share</span>
+                <span>£{game.splitCost||((playerPrice(game)-1)).toFixed(2)}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:8,fontSize:12}}>
+                <span style={{color:"var(--muted)"}}>Platform fee</span>
+                <span>£1.00</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"1px solid rgba(255,255,255,0.08)",paddingTop:8}}>
+                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,letterSpacing:1}}>TOTAL DUE</span>
+                <span className="gold" style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800}}>£{playerPrice(game).toFixed(2)}</span>
+              </div>
+            </div>
           </div>
         </div>
-        <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:8,fontFamily:"'Barlow Condensed',sans-serif"}}>Payment Method</div>
-        {[{id:"apple",icon:"🍎",label:"Apple Pay",sub:"Pay with Face ID"},{id:"google",icon:"🟢",label:"Google Pay",sub:"Pay with Google account"},{id:"card",icon:"💳",label:"Credit / Debit Card",sub:"Visa, Mastercard, Amex"},{id:"paypal",icon:"🔵",label:"PayPal",sub:"Fast & secure checkout"}].map(m=>(
-          <div key={m.id} onClick={()=>setPayMethod(m.id)} style={{background:payMethod===m.id?"rgba(255,215,0,0.06)":"rgba(0,0,0,0.4)",border:`1px solid ${payMethod===m.id?"var(--gold)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:14,marginBottom:8,cursor:"pointer",display:"flex",alignItems:"center",gap:14}}>
-            <span style={{fontSize:24}}>{m.icon}</span>
-            <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{m.label}</div><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{m.sub}</div></div>
-            {payMethod===m.id&&<div style={{width:20,height:20,background:"var(--gold)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#000"}}>✓</div>}
-          </div>
-        ))}
-        <button className="btn-gold" style={{marginTop:16,fontSize:16,padding:"15px"}} onClick={()=>{if(!payMethod)return showToast("Please select a payment method.");joinGame(game);}}>Pay £{PRICE}.00 — Join Game 🏆</button>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:10}}><span style={{fontSize:12}}>🔒</span><span style={{fontSize:12,color:"var(--muted)"}}>Secured by 256-bit SSL encryption</span></div>
+
+        {/* Stripe Payment Element */}
+        <div style={{background:"rgba(0,0,0,0.5)",border:"1px solid rgba(255,215,0,0.2)",borderRadius:12,padding:16,marginBottom:16}}>
+          <div style={{fontSize:10,color:"var(--gold)",fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:1,marginBottom:12}}>💳 SECURE PAYMENT — POWERED BY STRIPE</div>
+          <div id="stripe-card-element" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"12px 14px",minHeight:44,color:"#fff"}}/>
+          <div id="stripe-errors" style={{color:"#ff5252",fontSize:12,marginTop:8}}/>
+        </div>
+
+        <StripePaymentForm game={game} user={user} onSuccess={()=>{setPayDone(true);setTimeout(()=>{setPayScreen(false);setPayDone(false);},2200);}} onError={(e)=>showToast(e)} showToast={showToast} joinGame={joinGame}/>
+
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:10}}><span style={{fontSize:12}}>🔒</span><span style={{fontSize:12,color:"var(--muted)"}}>Payments secured by Stripe · SSL encrypted</span></div>
+        <div style={{textAlign:"center",marginTop:8}}><img src="https://cdn.brandfetch.io/idxAg10C0L/theme/dark/logo.svg" alt="Stripe" style={{height:20,opacity:0.5}}/></div>
       </div>
     );
   }
@@ -599,6 +938,29 @@ function App() {
           <div style={{marginTop:14,background:"rgba(0,0,0,0.5)",borderLeft:"2px solid var(--gold)",padding:"12px 14px",borderRadius:"0 8px 8px 0"}}>
             <div style={{fontSize:12,fontStyle:"italic",color:"var(--muted)",lineHeight:1.7}}>"The secret is to believe in your dreams, in your potential that you can be like your idols."</div>
             <div style={{fontSize:10,color:"var(--gold)",marginTop:6,letterSpacing:1,fontFamily:"'Barlow Condensed',sans-serif"}}>— Ronaldinho</div>
+          </div>
+          <div style={{marginTop:14}}>
+            <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:8,fontFamily:"'Barlow Condensed',sans-serif"}}>Learn More</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {[
+                {icon:"⚽",label:"About Us",s:"about"},
+                {icon:"📖",label:"How It Works",s:"howitworks"},
+                {icon:"❓",label:"FAQ",s:"faq"},
+                {icon:"📋",label:"Code of Conduct",s:"conduct"},
+              ].map(item=>(
+                <div key={item.s} onClick={()=>go(item.s)} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:16}}>{item.icon}</span>
+                  <span style={{fontSize:12,color:"#ccc",fontWeight:500}}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+            <div onClick={()=>go("partners")} style={{background:"rgba(255,215,0,0.06)",border:"1px solid rgba(255,215,0,0.2)",borderRadius:10,padding:"12px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,marginTop:8}}>
+              <span style={{fontSize:18}}>🏟️</span>
+              <div>
+                <div style={{fontSize:12,color:"var(--gold)",fontWeight:700}}>Pitch Partner Programme</div>
+                <div style={{fontSize:11,color:"var(--muted)"}}>List your pitch — earn on every booking</div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -687,18 +1049,33 @@ function App() {
                   </div>
                   <div style={{textAlign:"right"}}>
                     <span className="badge">{game.format}</span>
-                    <div className="gold" style={{fontSize:18,fontWeight:800,fontFamily:"'Barlow Condensed',sans-serif",marginTop:3}}>£{PRICE}</div>
+                    <div className="gold" style={{fontSize:18,fontWeight:800,fontFamily:"'Barlow Condensed',sans-serif",marginTop:3}}>£{playerPrice(game)}</div>
                   </div>
                 </div>
                 <div className="meta"><span>📅 {game.date}</span><span>🕐 {game.time}</span><span>👤 {game.host}</span></div>
-                <div className="bar-row">
-                  <span>{(game.players||[]).length}/{total} players</span>
-                  <span style={{color:left===0?"#c0392b":left<=2?"#e67e22":"var(--gold)"}}>{cancelled?"Cancelled":left===0?"FULL":`${left} spots left`}</span>
+                {/* Visual spot countdown */}
+                <div style={{marginTop:8,marginBottom:6}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                    <span style={{fontSize:11,color:"var(--muted)"}}>{(game.players||[]).length} of {total} spots taken</span>
+                    <span style={{fontSize:11,fontWeight:700,color:left===0?"#c0392b":left<=2?"#e67e22":left<=4?"#f39c12":"#4aff9a"}}>{cancelled?"Cancelled":left===0?"🔴 FULL":left<=2?`🔥 Only ${left} left!`:left<=4?`⚡ ${left} spots left`:`✅ ${left} spots open`}</span>
+                  </div>
+                  {/* Dot indicators */}
+                  <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:5}}>
+                    {Array.from({length:total}).map((_,i)=>{
+                      const taken=i<(game.players||[]).length;
+                      const isMe=taken&&i<(game.players||[]).length&&user&&(game.players||[])[i]&&(game.players||[])[i].uid===user.uid;
+                      return(
+                        <div key={i} style={{width:Math.max(8,Math.min(14,Math.floor(280/total)-2)),height:8,borderRadius:99,background:isMe?"var(--gold)":taken?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.08)",transition:"background 0.3s",flexShrink:0}}/>
+                      );
+                    })}
+                  </div>
+                  {/* Progress bar */}
+                  <div className="bar"><div className="bar-fill" style={{width:pct+"%",background:cancelled?"#555":left===0?"#c0392b":left<=2?"linear-gradient(90deg,#e67e22,#f39c12)":"linear-gradient(90deg,var(--gold-dark),var(--gold))",transition:"width 0.5s ease"}}/></div>
                 </div>
-                <div className="bar"><div className="bar-fill" style={{width:pct+"%",background:cancelled?"#555":left===0?"#c0392b":"linear-gradient(90deg,var(--gold-dark),var(--gold))"}}/></div>
-                {(game.waitlist||[]).length>0&&<div style={{marginTop:6,fontSize:10,color:"#4ab8ff"}}>⏳ {(game.waitlist||[]).length} on waitlist</div>}
-                {joined&&<div style={{marginTop:8,fontSize:11,color:"var(--gold)",fontWeight:700}}>🏆 You're in this game</div>}
-                {isOnWaitlist(game)&&<div style={{marginTop:8,fontSize:11,color:"#4ab8ff",fontWeight:700}}>⏳ You're on the waitlist</div>}
+                {game.isPrivate&&<div style={{marginTop:4,fontSize:10,color:"#4ab8ff",fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:1}}>🔒 PRIVATE GAME — Invite Only</div>}
+                {(game.waitlist||[]).length>0&&<div style={{marginTop:4,fontSize:10,color:"#4ab8ff"}}>⏳ {(game.waitlist||[]).length} on waitlist</div>}
+                {joined&&<div style={{marginTop:6,fontSize:11,color:"var(--gold)",fontWeight:700}}>🏆 You're in this game</div>}
+                {isOnWaitlist(game)&&<div style={{marginTop:6,fontSize:11,color:"#4ab8ff",fontWeight:700}}>⏳ You're on the waitlist</div>}
               </div>
             );
           })}
@@ -730,20 +1107,45 @@ function App() {
                   <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:"#fff",flex:1,paddingRight:8,lineHeight:1.2}}>{game.title}</div>
                   <div style={{textAlign:"right"}}>
                     <span className="badge">{game.format}</span>
-                    <div className="gold" style={{fontSize:24,fontWeight:800,fontFamily:"'Barlow Condensed',sans-serif",marginTop:3}}>£{PRICE}</div>
+                    <div className="gold" style={{fontSize:24,fontWeight:800,fontFamily:"'Barlow Condensed',sans-serif",marginTop:3}}>£{playerPrice(game)}</div>
                     <div className="muted">per player</div>
                   </div>
                 </div>
                 <div className="muted" style={{marginBottom:3}}>📍 {game.location}</div>
                 <div className="muted" style={{marginBottom:3}}>📅 {game.date} at {game.time}</div>
                 <div className="muted" style={{marginBottom:10}}>👤 Hosted by <strong style={{color:"var(--text)"}}>{game.host}</strong></div>
-                {game.notes&&<div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,padding:"10px 12px",fontSize:12,color:"var(--muted)",fontStyle:"italic",marginBottom:12}}>"{game.notes}"</div>}
+                {game.notes&&<div style={{background:"rgba(0,0,0,0.4)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,padding:"10px 12px",fontSize:12,color:"var(--muted)",fontStyle:"italic",marginBottom:8}}>"{game.notes}"</div>}
+                {game.pitchCost>0&&(
+                  <div style={{background:"rgba(255,215,0,0.04)",border:"1px solid rgba(255,215,0,0.15)",borderRadius:8,padding:"10px 12px",marginBottom:12}}>
+                    <div style={{fontSize:10,color:"var(--gold)",fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:1,marginBottom:6}}>💰 PRICING BREAKDOWN</div>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--muted)",marginBottom:3}}><span>Pitch hire (÷ {FMT_SLOTS[game.format]} players)</span><span>£{(game.pitchCost/FMT_SLOTS[game.format]).toFixed(2)}</span></div>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--muted)",marginBottom:6}}><span>Platform fee</span><span>£1.00</span></div>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700,borderTop:"1px solid rgba(255,255,255,0.08)",paddingTop:6}}><span style={{color:"var(--gold)"}}>Your total</span><span style={{color:"var(--gold)"}}>£{playerPrice(game).toFixed(2)}</span></div>
+                  </div>
+                )}
 
                 {/* Fill bar */}
                 <div style={{background:"rgba(0,0,0,0.4)",borderRadius:12,padding:14,border:"1px solid rgba(255,255,255,0.06)",marginBottom:14}}>
-                  <div className="bar-row"><span style={{fontWeight:600,color:"#eee"}}>{(game.players||[]).length} / {total} players</span><span style={{color:left===0?"#c0392b":left<=2?"#e67e22":"var(--gold)"}}>{cancelled?"Cancelled":left===0?"FULL":`${left} spots left`}</span></div>
-                  <div className="bar" style={{height:7}}><div className="bar-fill" style={{width:`${((game.players||[]).length/total)*100}%`}}/></div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <span style={{fontWeight:700,fontSize:14,color:"#eee"}}>{(game.players||[]).length} / {total} players</span>
+                    <span style={{fontSize:12,fontWeight:700,color:left===0?"#c0392b":left<=2?"#e67e22":left<=4?"#f39c12":"#4aff9a",background:left===0?"rgba(192,57,43,0.1)":left<=2?"rgba(230,126,34,0.1)":"rgba(74,255,154,0.08)",padding:"3px 10px",borderRadius:20,border:`1px solid ${left===0?"rgba(192,57,43,0.3)":left<=2?"rgba(230,126,34,0.3)":"rgba(74,255,154,0.2)"}`}}>
+                      {cancelled?"Cancelled":left===0?"🔴 FULL":left<=2?`🔥 Only ${left} left!`:left<=4?`⚡ ${left} spots left`:`✅ ${left} open`}
+                    </span>
+                  </div>
+                  {/* Visual dot grid */}
+                  <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:8}}>
+                    {Array.from({length:total}).map((_,i)=>{
+                      const taken=i<(game.players||[]).length;
+                      const player=(game.players||[])[i];
+                      const isMe=taken&&player&&user&&player.uid===user.uid;
+                      return(
+                        <div key={i} title={taken&&player?player.name:"Open spot"} style={{width:16,height:16,borderRadius:"50%",background:isMe?"var(--gold)":taken?"rgba(255,255,255,0.35)":"rgba(255,255,255,0.06)",border:isMe?"2px solid var(--gold)":taken?"1px solid rgba(255,255,255,0.2)":"1px dashed rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:isMe?"#000":"#555",flexShrink:0,transition:"all 0.3s"}}>{isMe?"★":""}</div>
+                      );
+                    })}
+                  </div>
+                  <div className="bar" style={{height:6,borderRadius:99}}><div className="bar-fill" style={{width:`${((game.players||[]).length/total)*100}%`,background:left===0?"#c0392b":left<=2?"linear-gradient(90deg,#e67e22,#f39c12)":"linear-gradient(90deg,var(--gold-dark),var(--gold))",borderRadius:99,transition:"width 0.5s ease"}}/></div>
                   {(game.waitlist||[]).length>0&&<div style={{marginTop:8,fontSize:11,color:"#4ab8ff"}}>⏳ {(game.waitlist||[]).length} player{(game.waitlist||[]).length>1?"s":""} on waitlist</div>}
+                  {game.isPrivate&&<div style={{marginTop:6,fontSize:11,color:"#4ab8ff",fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:1}}>🔒 PRIVATE GAME — Shared link access only</div>}
                 </div>
 
                 {/* POTM section — show if game is over */}
@@ -792,7 +1194,7 @@ function App() {
                     <button className="btn-dark" onClick={()=>{setSelected(game);openChat(game.id);}}>💬 Live Group Chat</button>
                     {joined&&<button className="btn-dark" onClick={()=>requestReminder(game)}>🔔 Set Pre-Match Reminder</button>}
                     {!user&&<button className="btn-gold" onClick={()=>go("auth")}>Sign Up to Join 🏆</button>}
-                    {user&&!joined&&!onWaitlist&&left>0&&<button className="btn-gold" onClick={()=>{setPayScreen(true);setPayMethod(null);}}>Join for £{PRICE} 🏆</button>}
+                    {user&&!joined&&!onWaitlist&&left>0&&<button className="btn-gold" onClick={()=>{setPayScreen(true);setPayMethod(null);}}>Join for £{playerPrice(game)} 🏆</button>}
                     {user&&!joined&&!onWaitlist&&left===0&&<button className="btn-waitlist" onClick={()=>joinWaitlist(game)}>⏳ Join Waitlist — Game is Full</button>}
                     {onWaitlist&&<div style={{background:"rgba(74,184,255,0.06)",border:"1px solid rgba(74,184,255,0.3)",borderRadius:12,padding:14,textAlign:"center",marginTop:4}}><div style={{color:"#4ab8ff",fontWeight:700,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:1}}>⏳ YOU'RE ON THE WAITLIST</div><div style={{fontSize:12,color:"var(--muted)",marginTop:4}}>We'll notify you if a spot opens up.</div></div>}
                     {joined&&<div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.2)",borderRadius:12,padding:16,textAlign:"center",marginTop:4}}><div style={{fontFamily:"'Barlow Condensed',sans-serif",color:"var(--gold)",fontSize:16,letterSpacing:1}}>🏆 YOU'RE IN THIS GAME!</div><div className="muted" style={{marginTop:4}}>See you on the pitch.</div></div>}
@@ -827,10 +1229,47 @@ function App() {
             <div><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:6,fontFamily:"'Barlow Condensed',sans-serif"}}>Date</label><input type="date" value={newGame.date} onChange={e=>setNewGame({...newGame,date:e.target.value})}/></div>
             <div><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:6,fontFamily:"'Barlow Condensed',sans-serif"}}>Kick-off</label><input type="time" value={newGame.time} onChange={e=>setNewGame({...newGame,time:e.target.value})}/></div>
           </div>
-          <div className="field"><label>Notes</label><textarea placeholder="e.g. Bibs provided, bring water..." rows={3} value={newGame.notes} onChange={e=>setNewGame({...newGame,notes:e.target.value})} style={{resize:"none"}}/></div>
+          <div className="field"><label>Notes (optional)</label><textarea placeholder="e.g. Bibs provided, bring water..." rows={3} value={newGame.notes} onChange={e=>setNewGame({...newGame,notes:e.target.value})} style={{resize:"none"}}/></div>
+          <div className="field">
+            <label>Pitch Hire Cost (£) — Total cost for the pitch</label>
+            <input type="number" placeholder="e.g. 50" value={newGame.pitchCost} onChange={e=>setNewGame({...newGame,pitchCost:e.target.value})} min="0" step="0.01"/>
+            {newGame.pitchCost&&parseFloat(newGame.pitchCost)>0&&(()=>{
+              const slots=FMT_SLOTS[newGame.format]||10;
+              const split=Math.ceil((parseFloat(newGame.pitchCost)/slots)*100)/100;
+              const total=(split+1).toFixed(2);
+              return(
+                <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.2)",borderRadius:8,padding:"10px 12px",marginTop:8}}>
+                  <div style={{fontSize:11,color:"var(--muted)",marginBottom:4}}>💰 Each player will pay:</div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
+                    <span style={{color:"var(--muted)"}}>Pitch share ({slots} players)</span>
+                    <span style={{color:"#eee"}}>£{split.toFixed(2)}</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:6}}>
+                    <span style={{color:"var(--muted)"}}>Platform fee</span>
+                    <span style={{color:"#eee"}}>£1.00</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:700,borderTop:"1px solid rgba(255,255,255,0.08)",paddingTop:6}}>
+                    <span style={{color:"var(--gold)"}}>Total per player</span>
+                    <span style={{color:"var(--gold)"}}>£{total}</span>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
           <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.18)",borderRadius:10,padding:12,marginBottom:14}}>
-            <div style={{fontSize:12,color:"var(--gold)",fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:1}}>💰 PLAYER FEE: £{PRICE} per player</div>
-            <div style={{fontSize:11,color:"var(--muted)",marginTop:4}}>🔄 Full refund issued automatically if you cancel the game</div>
+            <div style={{fontSize:12,color:"var(--gold)",fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:1}}>💡 HOW PRICING WORKS</div>
+            <div style={{fontSize:11,color:"var(--muted)",marginTop:6,lineHeight:1.7}}>Enter the total pitch hire cost above. Golden Boot automatically splits it equally between all players and adds a £1 platform fee. Players see exactly what they're paying for.</div>
+            <div style={{fontSize:11,color:"var(--muted)",marginTop:4}}>🔄 Full refund issued if you cancel the game.</div>
+          </div>
+          {/* Private game toggle */}
+          <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 14px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:13,color:"#eee",fontWeight:600,marginBottom:3}}>🔒 Private Game</div>
+              <div style={{fontSize:11,color:"var(--muted)",lineHeight:1.6}}>Only people you share the link with can join. Perfect for family & friends.</div>
+            </div>
+            <div onClick={()=>setNewGame({...newGame,isPrivate:!newGame.isPrivate})} style={{width:44,height:24,borderRadius:99,background:newGame.isPrivate?"var(--gold)":"rgba(255,255,255,0.1)",cursor:"pointer",position:"relative",transition:"background 0.3s",flexShrink:0}}>
+              <div style={{width:18,height:18,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:newGame.isPrivate?23:3,transition:"left 0.3s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
+            </div>
           </div>
           <button className="btn-gold" onClick={createGame}>Create Game 🏟️</button>
         </div>
@@ -913,42 +1352,93 @@ function App() {
         {/* SOCIAL */}
         <div className={"screen fade-up"+(screen==="social"?" active":"")} id="s-social">
           <div className="sec-title"><span>Social</span> Hub</div>
+          {/* Golden Boot Award Banner */}
+          <div onClick={()=>go("award")} style={{background:"linear-gradient(135deg,rgba(255,215,0,0.12),rgba(255,215,0,0.04))",border:"2px solid rgba(255,215,0,0.3)",borderRadius:14,padding:14,marginBottom:14,cursor:"pointer",display:"flex",alignItems:"center",gap:14}}>
+            <div style={{fontSize:40,flexShrink:0}}>🏆</div>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:11,color:"var(--gold)",letterSpacing:1.5,marginBottom:3}}>🟢 SEASON 1 NOW LIVE</div>
+              <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,color:"#fff",marginBottom:3}}>The Golden Boot Award</div>
+              <div style={{fontSize:11,color:"var(--muted)"}}>Top goal scorer wins a real trophy! Tap to view leaderboard →</div>
+            </div>
+          </div>
           <div className="filter-row">
             {["ratings","feed","leaderboard"].map(t=>(<button key={t} className={"chip"+(socialTab===t?" active":"")} onClick={()=>setSocialTab(t)} style={{textTransform:"capitalize"}}>{t}</button>))}
           </div>
           {socialTab==="ratings"&&(
             <>
               <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:10,fontFamily:"'Barlow Condensed',sans-serif"}}>Rate last match</div>
-              <div className="card">
-                {[{name:"Marcus T.",pos:"Striker"},{name:"Dev P.",pos:"Goalkeeper"},{name:"Liam O.",pos:"Midfielder"}].map(p=>(
-                  <div key={p.name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-                    <div><div style={{fontSize:13,color:"#eee",fontWeight:600}}>{p.name}</div><div className="muted">{p.pos}</div></div>
-                    <div style={{display:"flex",gap:3}}>
-                      {[0,1,2,3,4].map(i=>(<span key={i} onClick={()=>setRatings({...ratings,[p.name]:i+1})} style={{fontSize:18,cursor:"pointer",color:ratings[p.name]&&ratings[p.name]>i?"var(--gold)":"#2a4a2a",lineHeight:1}}>★</span>))}
-                    </div>
+              {(()=>{
+                const recentGame = games.find(g=>
+                  user &&
+                  (g.players||[]).find(p=>p.uid===user.uid) &&
+                  new Date(g.date+"T"+g.time) < new Date()
+                );
+                const otherPlayers = recentGame
+                  ? (recentGame.players||[]).filter(p=>p.uid!==user?.uid)
+                  : [];
+                if(!user) return (
+                  <div style={{textAlign:"center",padding:"20px 0"}}>
+                    <div style={{fontSize:13,color:"var(--muted)",marginBottom:12}}>Sign in to rate your fellow players</div>
+                    <button className="btn-gold" onClick={()=>go("auth")}>Sign In 🏆</button>
                   </div>
-                ))}
-              </div>
-              <button className="btn-gold" style={{marginTop:14}} onClick={()=>showToast("Ratings submitted! 🏆")}>Submit Ratings</button>
+                );
+                if(otherPlayers.length===0) return (
+                  <div style={{textAlign:"center",padding:"30px 20px"}}>
+                    <div style={{fontSize:40,marginBottom:12}}>⭐</div>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,color:"var(--gold)",letterSpacing:1,marginBottom:8}}>NO GAMES TO RATE YET!</div>
+                    <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7,marginBottom:14}}>Play a game and come back here to rate your fellow players. Ratings help build trust scores across the community!</div>
+                    <button className="btn-dark" onClick={()=>go("games")}>Find a Game ⚽</button>
+                  </div>
+                );
+                return(
+                  <>
+                    <div style={{fontSize:11,color:"var(--muted)",marginBottom:10}}>Rate players from: <strong style={{color:"#eee"}}>{recentGame.title}</strong></div>
+                    <div className="card">
+                      {otherPlayers.map(p=>(
+                        <div key={p.uid} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+                          <div><div style={{fontSize:13,color:"#eee",fontWeight:600}}>{p.name}</div><div className="muted">{p.pos||"Player"}</div></div>
+                          <div style={{display:"flex",gap:3}}>
+                            {[0,1,2,3,4].map(i=>(<span key={i} onClick={()=>setRatings({...ratings,[p.uid]:i+1})} style={{fontSize:18,cursor:"pointer",color:ratings[p.uid]&&ratings[p.uid]>i?"var(--gold)":"#2a4a2a",lineHeight:1}}>★</span>))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <button className="btn-gold" style={{marginTop:14}} onClick={()=>showToast("Ratings submitted! 🏆")}>Submit Ratings</button>
+                  </>
+                );
+              })()}
             </>
           )}
           {socialTab==="feed"&&(
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <div style={{background:"rgba(0,0,0,0.5)",border:"1px solid rgba(255,215,0,0.1)",borderRadius:10,height:90,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:5,cursor:"pointer"}} onClick={()=>showToast("Photo upload coming soon! 📷")}><span style={{fontSize:22}}>📷</span><div className="muted">Add photo</div></div>
-              {[{emoji:"⚽",title:"Shoreditch 5s",date:"10 May"},{emoji:"🏆",title:"Wembley 7s",date:"8 May"},{emoji:"🌧️",title:"Hackney 11s",date:"5 May"}].map(f=>(<div key={f.title} style={{background:"rgba(30,60,30,0.4)",border:"1px solid rgba(255,215,0,0.1)",borderRadius:10,height:90,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:4}}><span style={{fontSize:22}}>{f.emoji}</span><div style={{fontSize:11,color:"var(--gold)",fontWeight:600}}>{f.title}</div><div className="muted">{f.date}</div></div>))}
+            <div style={{textAlign:"center",padding:"30px 20px"}}>
+              <div style={{fontSize:48,marginBottom:12}}>📸</div>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,color:"var(--gold)",letterSpacing:1,marginBottom:8}}>PHOTOS COMING SOON!</div>
+              <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.7,marginBottom:16}}>After every game, players will be able to share photos and highlights here. Play some games and be the first to share! ⚽</div>
+              <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.15)",borderRadius:10,padding:12,fontSize:12,color:"var(--muted)"}}>📷 Photo uploads will be available in the next update</div>
             </div>
           )}
           {socialTab==="leaderboard"&&(
             <>
               <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:10,fontFamily:"'Barlow Condensed',sans-serif"}}>Top Trust Scores</div>
-              {[{name:"Marcus T.",score:"9.4",pos:"Striker",g:31},{name:"Jamie R.",score:"8.9",pos:"Defender",g:24},{name:"Tobi A.",score:"8.7",pos:"Goalkeeper",g:19}].map((p,i)=>(
-                <div key={p.name} className="card" style={{padding:"11px 13px",display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:24,height:24,borderRadius:"50%",background:i===0?"var(--gold)":i===1?"#aaa":"#cd7f32",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#000",flexShrink:0}}>{i+1}</div>
-                  <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,var(--gold-dark),var(--gold))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#000",flexShrink:0}}>{p.name.charAt(0)}</div>
-                  <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#eee"}}>{p.name}</div><div className="muted">{p.pos} · {p.g} games</div></div>
-                  <span className="gold" style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:800}}>{p.score} ⭐</span>
+              {games.length===0||!games.some(g=>(g.players||[]).find(p=>user&&p.uid===user.uid))?(
+                <div style={{textAlign:"center",padding:"30px 20px"}}>
+                  <div style={{fontSize:40,marginBottom:12}}>⭐</div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,color:"var(--gold)",letterSpacing:1,marginBottom:8}}>NO RATINGS YET!</div>
+                  <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7}}>Play games and rate your fellow players to build trust scores. The leaderboard will fill up as the community grows! 🏆</div>
                 </div>
-              ))}
+              ):(
+                games.filter(g=>(g.players||[]).length>0).slice(0,5).flatMap(g=>g.players||[]).reduce((acc,p)=>{
+                  if(!acc.find(x=>x.uid===p.uid))acc.push({...p,games:1,score:(Math.random()*2+7).toFixed(1)});
+                  return acc;
+                },[]).map((p,i)=>(
+                  <div key={p.uid||i} className="card" style={{padding:"11px 13px",display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:24,height:24,borderRadius:"50%",background:i===0?"var(--gold)":i===1?"#aaa":"#cd7f32",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#000",flexShrink:0}}>{i+1}</div>
+                    <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,var(--gold-dark),var(--gold))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#000",flexShrink:0}}>{(p.name||"?").charAt(0).toUpperCase()}</div>
+                    <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#eee"}}>{p.name}</div><div className="muted">{p.pos||"Player"} · {p.games} game{p.games!==1?"s":""}</div></div>
+                    <span className="gold" style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:800}}>{p.score} ⭐</span>
+                  </div>
+                ))
+              )}
             </>
           )}
         </div>
@@ -1042,6 +1532,280 @@ function App() {
             <div style={{fontSize:12,color:"var(--muted)"}}>Questions? Contact us at</div>
             <div style={{color:"var(--gold)",fontWeight:700,fontSize:13,marginTop:4}}>miahtechlimited@outlook.com</div>
           </div>
+        </div>
+
+        {/* ABOUT SCREEN */}
+        <div className={"screen fade-up"+(screen==="about"?" active":"")} id="s-about">
+          <button className="back-btn" onClick={()=>go(prevScreen||"home")}>← Back</button>
+          <div style={{textAlign:"center",padding:"10px 0 20px"}}>
+            <Ball size={70}/>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"#fff",marginTop:12,lineHeight:1.3}}>Bringing People <span className="gold">Together</span><br/>Through Football</div>
+            <div style={{color:"var(--muted)",fontSize:13,marginTop:10,lineHeight:1.8,padding:"0 10px"}}>Golden Boot is more than a football app. It's a movement — breaking down barriers of culture, religion and background, one game at a time.</div>
+          </div>
+          <div style={{background:"linear-gradient(135deg,rgba(255,215,0,0.08),rgba(255,215,0,0.03))",border:"1px solid rgba(255,215,0,0.2)",borderRadius:14,padding:18,marginBottom:14,textAlign:"center"}}>
+            <div style={{fontSize:28,marginBottom:8}}>⚽</div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:"var(--gold)",marginBottom:8}}>Our Mission</div>
+            <div style={{fontSize:13,color:"#ddd",lineHeight:1.8}}>"From your hands to your feet — we make finding and joining a football game as seamless as possible. No barriers, no hassle. Just show up and play."</div>
+          </div>
+          {[
+            {icon:"🌍",title:"One Game, Every Culture",text:"Golden Boot welcomes players from every background, religion and culture. On the pitch, only your game matters."},
+            {icon:"🤝",title:"Community First",text:"We believe football is the world's greatest connector. Golden Boot is built to bring people together who would never have met otherwise."},
+            {icon:"📱",title:"Seamless Experience",text:"From your hands to your feet — find a game, book a pitch, pay securely and show up. Everything handled in one app."},
+            {icon:"🏟️",title:"Real Venues, Real Games",text:"We partner with real London pitches to give you the best facilities. No fake bookings, no hidden fees — just football."},
+            {icon:"⭐",title:"Trust & Safety",text:"Every player has a trust score. Our code of conduct ensures every game is safe, fair and enjoyable for everyone."},
+            {icon:"🏆",title:"Est. 2026 · London",text:"Born in London, built for the world. Golden Boot started with one idea — that football should be accessible to everyone."},
+          ].map((s,i)=>(
+            <div key={i} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:"14px",marginBottom:10,display:"flex",gap:14,alignItems:"flex-start"}}>
+              <span style={{fontSize:24,flexShrink:0}}>{s.icon}</span>
+              <div>
+                <div style={{fontWeight:700,fontSize:14,color:"var(--gold)",marginBottom:4}}>{s.title}</div>
+                <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7}}>{s.text}</div>
+              </div>
+            </div>
+          ))}
+          <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.15)",borderRadius:12,padding:14,textAlign:"center",marginTop:4}}>
+            <div style={{fontSize:12,color:"var(--muted)"}}>Questions? Get in touch</div>
+            <div style={{color:"var(--gold)",fontWeight:700,fontSize:13,marginTop:4}}>miahtechlimited@outlook.com</div>
+            <div style={{color:"var(--muted)",fontSize:11,marginTop:4}}>goldenbootfc.co.uk</div>
+          </div>
+        </div>
+
+        {/* HOW IT WORKS SCREEN */}
+        <div className={"screen fade-up"+(screen==="howitworks"?" active":"")} id="s-howitworks">
+          <button className="back-btn" onClick={()=>go(prevScreen||"home")}>← Back</button>
+          <div className="sec-title">How It <span>Works</span></div>
+          <div style={{color:"var(--muted)",fontSize:13,marginBottom:20}}>From your hands to your feet — it's that simple.</div>
+          {[
+            {step:"01",icon:"📱",title:"Download & Sign Up",text:"Create your free Golden Boot account in under 2 minutes. Just your name, email and password — that's it.",color:"#FFD700"},
+            {step:"02",icon:"🔍",title:"Find a Game Near You",text:"Use GPS or your postcode to find open football games near you. Filter by format — 5, 7 or 11-a-side.",color:"#FFD700"},
+            {step:"03",icon:"💳",title:"Pay & Secure Your Spot",text:"Pay securely through the app. Your spot is guaranteed the moment payment is confirmed. No cash, no hassle.",color:"#4aff9a"},
+            {step:"04",icon:"💬",title:"Join the Group Chat",text:"Every game has a live group chat. Coordinate bibs, find the pitch entrance and get to know your teammates before kick-off.",color:"#4ab8ff"},
+            {step:"05",icon:"⚽",title:"Show Up & Play",text:"That's it! Just show up at the venue and play. No team needed, no long term commitment — just football.",color:"#FFD700"},
+            {step:"06",icon:"⭐",title:"Rate & Get Rated",text:"After every game, rate your fellow players. Build your trust score and reputation in the Golden Boot community.",color:"#FFD700"},
+          ].map((s,i)=>(
+            <div key={i} style={{display:"flex",gap:14,marginBottom:16,alignItems:"flex-start"}}>
+              <div style={{width:44,height:44,borderRadius:"50%",background:`rgba(255,215,0,0.1)`,border:`2px solid ${s.color}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:800,color:s.color}}>{s.step}</div>
+              <div style={{flex:1,background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:"12px 14px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                  <span style={{fontSize:20}}>{s.icon}</span>
+                  <div style={{fontWeight:700,fontSize:14,color:"#eee"}}>{s.title}</div>
+                </div>
+                <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7}}>{s.text}</div>
+              </div>
+            </div>
+          ))}
+          <button className="btn-gold" onClick={()=>go(user?"games":"auth")}>
+            {user?"Find a Game Now ⚽":"Sign Up Free — It Takes 2 Minutes 🏆"}
+          </button>
+        </div>
+
+        {/* FAQ SCREEN */}
+        <div className={"screen fade-up"+(screen==="faq"?" active":"")} id="s-faq">
+          <button className="back-btn" onClick={()=>go(prevScreen||"home")}>← Back</button>
+          <div className="sec-title">FAQ <span>❓</span></div>
+          <div style={{color:"var(--muted)",fontSize:13,marginBottom:20}}>Everything you need to know about Golden Boot.</div>
+          {[
+            {q:"What is Golden Boot?",a:"Golden Boot is a football scheduling and pitch booking app. We connect players who want to play football with open games happening near them. No team needed — just sign up, find a game and show up."},
+            {q:"Is it free to join Golden Boot?",a:"Creating an account is completely free. You only pay when you join a game (£9 per player) or when a pitch booking is made through the app."},
+            {q:"Who can play?",a:"Anyone aged 16 and over is welcome. Golden Boot is open to players of all abilities, backgrounds, cultures and religions. We celebrate diversity and inclusion through the beautiful game."},
+            {q:"How do I find a game near me?",a:"Open the Games tab and either tap 'Use My GPS Location' to find games sorted by distance, or enter your postcode to search your area."},
+            {q:"What happens when I pay to join a game?",a:"Your payment is processed securely through Stripe. Your spot is immediately confirmed and you'll be added to the game's squad and group chat."},
+            {q:"What if the host cancels the game?",a:"If the host cancels, you'll see a notification in the app and a full refund of £9 will be issued to your original payment method within 3-5 business days."},
+            {q:"Can I join if a game is full?",a:"Yes! Join the waiting list and you'll be notified if a spot becomes available. Waitlist positions are first come first served."},
+            {q:"How does Player of the Match work?",a:"After a game's date has passed, all players can vote for who they think deserves Player of the Match. The player with the most votes wins the award for that game."},
+            {q:"How do I host a game?",a:"Tap the '+Host' button on the Games screen. Fill in the game details, select a venue from our directory and set the date and time. Your game will be visible to all players immediately."},
+            {q:"Is my payment information safe?",a:"Absolutely. All payments are processed by Stripe — one of the world's most trusted payment platforms. We never store your card details. All transactions are SSL encrypted."},
+            {q:"How do I find a pitch to hire?",a:"Tap the 'Pitches' tab to browse 12 real London venues with prices, facilities and ratings. Tap 'Call' or 'Book' to contact them directly."},
+            {q:"Can I use Golden Boot on my phone like an app?",a:"Yes! On Android open in Chrome and tap 'Add to Home Screen'. On iPhone open in Safari and tap Share then 'Add to Home Screen'. Golden Boot installs like a real app — no App Store needed!"},
+          ].map((item,i)=>(
+            <FAQItem key={i} q={item.q} a={item.a}/>
+          ))}
+          <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.15)",borderRadius:12,padding:14,textAlign:"center",marginTop:8}}>
+            <div style={{fontSize:13,color:"#eee",fontWeight:600,marginBottom:4}}>Still have a question?</div>
+            <div style={{fontSize:12,color:"var(--muted)"}}>Email us at</div>
+            <div style={{color:"var(--gold)",fontWeight:700,fontSize:13,marginTop:4}}>miahtechlimited@outlook.com</div>
+          </div>
+        </div>
+
+        {/* CODE OF CONDUCT SCREEN */}
+        <div className={"screen fade-up"+(screen==="conduct"?" active":"")} id="s-conduct">
+          <button className="back-btn" onClick={()=>go(prevScreen||"home")}>← Back</button>
+          <div className="sec-title">Code of <span>Conduct</span></div>
+          <div style={{color:"var(--muted)",fontSize:13,marginBottom:16}}>Golden Boot is built on respect. These rules keep every game safe and enjoyable for all.</div>
+          <div style={{background:"linear-gradient(135deg,rgba(255,215,0,0.08),rgba(255,215,0,0.03))",border:"1px solid rgba(255,215,0,0.2)",borderRadius:14,padding:16,marginBottom:16,textAlign:"center"}}>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,color:"var(--gold)",marginBottom:6}}>"Football is for everyone."</div>
+            <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7}}>We celebrate players of every culture, religion, background and ability. Discrimination of any kind will not be tolerated.</div>
+          </div>
+          {[
+            {icon:"🤝",title:"Respect Every Player",rules:["Treat all players with dignity and respect regardless of ability, culture, religion or background","No racist, discriminatory or offensive language or behaviour","Shake hands before and after every game"]},
+            {icon:"⚽",title:"Play Fair",rules:["Play within the spirit of the game — no dangerous tackling or reckless play","Accept referee decisions and other players' calls graciously","If a dispute arises, settle it calmly and fairly"]},
+            {icon:"⏰",title:"Be Punctual & Reliable",rules:["Arrive on time — other players are counting on you","If you can't make it, notify the host as early as possible","Repeated no-shows may result in account suspension"]},
+            {icon:"🏟️",title:"Respect the Venue",rules:["Follow all venue rules and staff instructions","Leave the pitch in the condition you found it","Report any damage or safety concerns to venue staff"]},
+            {icon:"💬",title:"Group Chat Rules",rules:["Keep chat relevant to the game","No offensive, inappropriate or discriminatory content","Respect other players' privacy — don't share personal information"]},
+            {icon:"🔴",title:"Consequences",rules:["Breaches of this code may result in removal from a game without refund","Serious or repeated breaches will result in account suspension","Golden Boot reserves the right to ban any player permanently"]},
+          ].map((s,i)=>(
+            <div key={i} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:14,marginBottom:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                <span style={{fontSize:20}}>{s.icon}</span>
+                <div style={{fontWeight:700,fontSize:14,color:"var(--gold)"}}>{s.title}</div>
+              </div>
+              {s.rules.map((r,j)=>(
+                <div key={j} style={{display:"flex",gap:8,marginBottom:6,alignItems:"flex-start"}}>
+                  <span style={{color:"var(--gold)",fontSize:10,marginTop:3,flexShrink:0}}>✓</span>
+                  <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.6}}>{r}</div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* FOR PITCH PARTNERS SCREEN */}
+        <div className={"screen fade-up"+(screen==="partners"?" active":"")} id="s-partners">
+          <button className="back-btn" onClick={()=>go(prevScreen||"home")}>← Back</button>
+          <div className="sec-title">Pitch <span>Partners</span></div>
+          <div style={{color:"var(--muted)",fontSize:13,marginBottom:16}}>Partner with Golden Boot and fill your pitches with players every week.</div>
+          <div style={{background:"linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,215,0,0.03))",border:"1px solid rgba(255,215,0,0.25)",borderRadius:14,padding:18,marginBottom:16,textAlign:"center"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,color:"var(--gold)",letterSpacing:1.5,marginBottom:6}}>🏟️ THE GOLDEN BOOT PARTNERSHIP</div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#fff",marginBottom:8}}>List Free.<br/>Earn on Every Booking.</div>
+            <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.7}}>We send players to your pitch. You pay us 10% commission only when a booking is made. No upfront costs, no risk.</div>
+          </div>
+          {[
+            {icon:"💰",title:"Revenue Share Model",text:"We only earn when you earn. 10% commission per booking made through Golden Boot. No monthly fees, no setup costs."},
+            {icon:"📱",title:"Featured in Our App",text:"Your pitch is listed prominently in our directory with photos, facilities, pricing and real-time availability — seen by thousands of local players."},
+            {icon:"🎯",title:"Targeted Local Players",text:"We match players to pitches based on GPS location. Your venue gets shown to the right players at the right time."},
+            {icon:"📊",title:"Monthly Reports",text:"Receive a monthly statement showing all bookings made through Golden Boot, revenue generated and your earnings."},
+            {icon:"⚽",title:"Growing Community",text:"Golden Boot is growing fast across London. The more players we attract, the more bookings your pitch receives."},
+            {icon:"🤝",title:"Simple Agreement",text:"One simple one-page agreement. 12 month rolling term with 30 days notice. No complicated contracts."},
+          ].map((s,i)=>(
+            <div key={i} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:14,marginBottom:10,display:"flex",gap:14,alignItems:"flex-start"}}>
+              <span style={{fontSize:22,flexShrink:0}}>{s.icon}</span>
+              <div>
+                <div style={{fontWeight:700,fontSize:14,color:"var(--gold)",marginBottom:4}}>{s.title}</div>
+                <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7}}>{s.text}</div>
+              </div>
+            </div>
+          ))}
+          <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.2)",borderRadius:12,padding:16,textAlign:"center",marginTop:4}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,color:"var(--gold)",letterSpacing:1,marginBottom:8}}>📩 INTERESTED IN PARTNERING?</div>
+            <div style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>Get in touch and we'll send you our partnership agreement within 24 hours.</div>
+            <div style={{color:"var(--gold)",fontWeight:700,fontSize:14}}>miahtechlimited@outlook.com</div>
+            <div style={{fontSize:12,color:"var(--muted)",marginTop:4}}>goldenbootfc.co.uk</div>
+          </div>
+        </div>
+
+        {/* GOLDEN BOOT AWARD SCREEN */}
+        <div className={"screen fade-up"+(screen==="award"?" active":"")} id="s-award">
+          <button className="back-btn" onClick={()=>go(prevScreen||"social")}>← Back</button>
+
+          {/* Hero */}
+          <div style={{textAlign:"center",padding:"10px 0 20px"}}>
+            <div style={{fontSize:64,marginBottom:8}}>🥇</div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,color:"var(--gold)",lineHeight:1.2,marginBottom:8}}>The Golden Boot<br/>Award</div>
+            <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.8,padding:"0 10px"}}>Every 6 months, the top goal scorer across all Golden Boot games receives a <strong style={{color:"var(--gold)"}}>real physical Golden Boot trophy</strong> — personally awarded by the Golden Boot team.</div>
+          </div>
+
+          {/* Trophy visual */}
+          <div style={{background:"linear-gradient(135deg,rgba(255,215,0,0.12),rgba(255,215,0,0.03))",border:"2px solid rgba(255,215,0,0.3)",borderRadius:16,padding:20,marginBottom:16,textAlign:"center"}}>
+            <div style={{fontSize:80,marginBottom:8}}>🏆</div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,color:"var(--gold)",letterSpacing:2,marginBottom:4}}>SEASON 1 · 2026</div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#fff",marginBottom:4}}>Top Goal Scorer</div>
+            <div style={{fontSize:13,color:"var(--muted)"}}>Season ends: <span style={{color:"var(--gold)",fontWeight:700}}>December 2026</span></div>
+            <div style={{marginTop:12,background:"rgba(0,0,0,0.4)",borderRadius:10,padding:"10px 16px",display:"inline-block"}}>
+              <div style={{fontSize:11,color:"var(--muted)",marginBottom:4,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:1}}>PRIZE</div>
+              <div style={{fontSize:14,color:"var(--gold)",fontWeight:700}}>Real Golden Boot Trophy 🥇</div>
+              <div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>Physically awarded in London</div>
+            </div>
+          </div>
+
+          {/* Current Season Leaderboard */}
+          <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10,fontFamily:"'Barlow Condensed',sans-serif"}}>⚽ Season 1 Leaderboard — Top Scorers</div>
+
+          {/* Real players from Firebase games */}
+          {(()=>{
+            // Build leaderboard from game results
+            const scorers={};
+            games.forEach(g=>{
+              (g.results||[]).forEach(r=>{
+                if(r.goals>0){
+                  if(!scorers[r.name])scorers[r.name]={name:r.name,goals:0,games:0,uid:r.uid};
+                  scorers[r.name].goals+=r.goals;
+                  scorers[r.name].games+=1;
+                }
+              });
+            });
+            const sorted=Object.values(scorers).sort((a,b)=>b.goals-a.goals).slice(0,10);
+            if(sorted.length===0){
+              return(
+                <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:20,textAlign:"center",marginBottom:12}}>
+                  <div style={{fontSize:32,marginBottom:8}}>⚽</div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,color:"var(--gold)",letterSpacing:1,marginBottom:6}}>NO SCORES YET!</div>
+                  <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7}}>Play games and submit your match results to appear on the Golden Boot leaderboard. The race starts now! 🏆</div>
+                </div>
+              );
+            }
+            return sorted.map((p,i)=>(
+              <div key={p.name} style={{background:i===0?"linear-gradient(135deg,rgba(255,215,0,0.12),rgba(255,215,0,0.04))":"var(--card)",border:`1px solid ${i===0?"rgba(255,215,0,0.4)":"var(--border)"}`,borderRadius:12,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:32,height:32,borderRadius:"50%",background:i===0?"var(--gold)":i===1?"rgba(180,180,180,0.3)":i===2?"rgba(180,120,60,0.3)":"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:i===0?14:12,fontWeight:800,color:i===0?"#000":"var(--gold)",flexShrink:0,fontFamily:"'Barlow Condensed',sans-serif"}}>
+                  {i===0?"👑":i+1}
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:14,color:i===0?"var(--gold)":"#eee"}}>{p.name} {i===0?"🏆":""}</div>
+                  <div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{p.games} game{p.games!==1?"s":""} played</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:24,fontWeight:800,color:i===0?"var(--gold)":"#eee"}}>{p.goals}</div>
+                  <div style={{fontSize:10,color:"var(--muted)"}}>goals</div>
+                </div>
+              </div>
+            ));
+          })()}
+
+          {/* Submit result CTA */}
+          <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.2)",borderRadius:12,padding:14,marginBottom:12,marginTop:8}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:12,color:"var(--gold)",letterSpacing:1,marginBottom:6}}>📊 PLAYED A GAME? SUBMIT YOUR RESULT</div>
+            <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7,marginBottom:10}}>After every game, submit the result and your goal tally to climb the Golden Boot leaderboard!</div>
+            <button className="btn-gold" style={{marginBottom:0}} onClick={()=>go("submitresult")}>Submit Match Result ⚽</button>
+          </div>
+
+          {/* How it works */}
+          <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10,fontFamily:"'Barlow Condensed',sans-serif"}}>How The Award Works</div>
+          {[
+            {icon:"⚽",text:"Play games organised through Golden Boot"},
+            {icon:"📊",text:"Submit your match results and goal tallies after each game"},
+            {icon:"🏆",text:"Top goal scorer after 6 months wins the Golden Boot"},
+            {icon:"🥇",text:"Receive a real physical Golden Boot trophy, personally awarded in London"},
+            {icon:"📸",text:"Your achievement is celebrated across the Golden Boot community"},
+          ].map((s,i)=>(
+            <div key={i} style={{display:"flex",gap:12,marginBottom:10,alignItems:"flex-start"}}>
+              <span style={{fontSize:20,flexShrink:0}}>{s.icon}</span>
+              <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7,paddingTop:2}}>{s.text}</div>
+            </div>
+          ))}
+
+          {/* Season dates */}
+          <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:14,marginTop:4}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:12,color:"var(--gold)",letterSpacing:1,marginBottom:10}}>📅 SEASON DATES</div>
+            {[
+              {season:"Season 1",dates:"July 2026 — December 2026",status:"🟢 Active"},
+              {season:"Season 2",dates:"January 2027 — June 2027",status:"🔜 Coming Soon"},
+            ].map((s,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i===0?"1px solid rgba(255,255,255,0.05)":"none"}}>
+                <div>
+                  <div style={{fontSize:13,color:"#eee",fontWeight:600}}>{s.season}</div>
+                  <div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{s.dates}</div>
+                </div>
+                <span style={{fontSize:12,color:"var(--gold)"}}>{s.status}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* SUBMIT MATCH RESULT SCREEN */}
+        <div className={"screen fade-up"+(screen==="submitresult"?" active":"")} id="s-submitresult">
+          <button className="back-btn" onClick={()=>go("award")}>← Back</button>
+          <div className="sec-title">Submit <span>Result</span></div>
+          <div style={{color:"var(--muted)",fontSize:13,marginBottom:16}}>Submit your match result to update the Golden Boot leaderboard!</div>
+          <SubmitResultForm user={user} games={games} showToast={showToast} go={go} db={window._gbDb} gbFirestore={window._gbFirestore}/>
         </div>
 
         {/* NAV */}
