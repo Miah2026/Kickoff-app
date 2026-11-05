@@ -68,7 +68,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc, where, runTransaction, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     const firebaseConfig = {
       apiKey: "AIzaSyA53AV8jLn1mkV1KbYAg-azpKxI5hkLMdY",
       authDomain: "golden-boot-5d3a9.firebaseapp.com",
@@ -82,7 +82,7 @@
     const db = getFirestore(app);
     window._gbAuth = auth;
     window._gbDb = db;
-    window._gbFirestore = { collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc };
+    window._gbFirestore = { collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc, where, runTransaction, deleteDoc };
     window._gbAuthFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail };
     window._gbReady = true;
     window.dispatchEvent(new Event("firebase-ready"));
@@ -362,7 +362,7 @@ return(
 </div>
 );
 }
-function HostPitchNotice({go, onConfirm}){
+function HostPitchNotice({go, onConfirm, busy}){
 const [checked, setChecked] = React.useState(false);
 return(
 <div>
@@ -387,8 +387,8 @@ Haven't found a pitch yet? Use our pitch finder to discover venues near you with
 I understand that I am responsible for booking and paying for the pitch. I have confirmed the venue is available on this date and time.
 </div>
 </div>
-<button className="btn-gold" onClick={()=>{if(!checked){alert("Please confirm you have read the pitch booking notice above.");return;}onConfirm();}} style={{opacity:checked?1:0.6}}>
-Create Game 🏟️
+<button className="btn-gold" disabled={busy} onClick={()=>{if(busy)return;if(!checked){alert("Please confirm you have read the pitch booking notice above.");return;}onConfirm();}} style={{opacity:checked&&!busy?1:0.6}}>
+{busy?"Creating game...":"Create Game 🏟️"}
 </button>
 </div>
 );
@@ -500,9 +500,10 @@ async function handlePay(){
 if(!stripeRef.current||!cardRef.current)return showToast("Payment system loading...");
 setLoading(true);
 try{
-await joinGame(game);
+const ok=await joinGame(game);
+if(ok===false){setLoading(false);return;}
 onSuccess();
-if(window.trackEvent)window.trackEvent('purchase',{currency:'GBP',value:9,game_title:game.title});
+if(window.trackEvent)window.trackEvent('purchase',{currency:'GBP',value:gamePrice,game_title:game.title});
 }catch(e){
 setLoading(false);
 onError("Payment failed. Please try again.");
@@ -552,7 +553,7 @@ return parseFloat((split+1).toFixed(2));
 return g.playerPrice||g.price||9;
 };
 const hostPrice=g=>1.00;
-const isJoined=game=>user&&(game.players||[]).find
+const isJoined=game=>!!(user&&(game.players||[]).some(p=>p.uid===user.uid));
 const [newGame,setNewGame]=useState({title:"",format:"5-a-side",location:"",date:"",time:"",notes:"",pitchCost:"",isPrivate:false,womensOnly:false});
 const [socialTab,setSocialTab]=useState("ratings");
 const [ratings,setRatings]=useState({});
@@ -568,6 +569,10 @@ const [chatMsgs,setChatMsgs]=useState([]);
 const [chatMsg,setChatMsg]=useState("");
 const [chatLoading,setChatLoading]=useState(false);
 const chatUnsubRef=useRef(null);
+const gamesUnsubRef=useRef(null);
+const notifsUnsubRef=useRef(null);
+const walletUnsubRef=useRef(null);
+const [busy,setBusy]=useState("");
 const chatEndRef=useRef(null);
 const [potmVote,setPotmVote]=useState(null);
 useEffect(()=>{
@@ -578,7 +583,11 @@ function initFb(){
 const {onAuthStateChanged}=window._gbAuthFns;
 onAuthStateChanged(window._gbAuth,u=>{
 if(u){setUser(u);loadGames();loadNotifications(u.uid);loadWallet(u.uid);}
-else{setUser(null);}
+else{
+setUser(null);
+[gamesUnsubRef,notifsUnsubRef,walletUnsubRef].forEach(r=>{if(r.current){r.current();r.current=null;}});
+setNotifications([]);setUnreadCount(0);setWalletBalance(0);
+}
 setLoading(false);
 });
 }
@@ -587,7 +596,8 @@ const {collection,onSnapshot,query,orderBy}=window._gbFirestore;
 const db=window._gbDb;
 try{
 const q=query(collection(db,"games"),orderBy("createdAt","desc"));
-onSnapshot(q,snap=>{
+if(gamesUnsubRef.current)gamesUnsubRef.current();
+gamesUnsubRef.current=onSnapshot(q,snap=>{
 const gs=snap.docs.map(d=>({id:d.id,...d.data()}));
 setGames(gs);
 if(user&&user.uid){
@@ -672,10 +682,10 @@ createdAt:serverTimestamp(),
 });
 }catch(e){console.log("Notification error:",e);}
 setWelcomeMsg(authForm.name);
-loadGames();go("games");
+go("games");
 }else{
 await signInWithEmailAndPassword(auth,authForm.email,authForm.password);
-showToast("Welcome back! 🏆");if(window.trackEvent)window.trackEvent('login',{method:'email'});loadGames();loadNotifications(cred?.user?.uid||window._gbAuth.currentUser?.uid);go("games");
+showToast("Welcome back! 🏆");if(window.trackEvent)window.trackEvent('login',{method:'email'});go("games");
 }
 }catch(e){
 const msgs={"auth/email-already-in-use":"That email is already registered.","auth/invalid-email":"Please enter a valid email.","auth/weak-password":"Password must be at least 6 characters.","auth/user-not-found":"No account found. Please sign up.","auth/wrong-password":"Incorrect password.","auth/invalid-credential":"Email or password is incorrect."};
@@ -693,13 +703,15 @@ createdAt: serverTimestamp(),
 }catch(e){console.log("Notification error:",e);}
 }
 function loadNotifications(uid){
-const {collection,onSnapshot,query,orderBy}=window._gbFirestore;
+const {collection,onSnapshot,query,where}=window._gbFirestore;
 try{
-const q=query(collection(window._gbDb,"notifications"),orderBy("createdAt","desc"));
-onSnapshot(q,snap=>{
+const q=query(collection(window._gbDb,"notifications"),where("uid","==",uid));
+if(notifsUnsubRef.current)notifsUnsubRef.current();
+notifsUnsubRef.current=onSnapshot(q,snap=>{
+const ms=n=>n.createdAt&&n.createdAt.toMillis?n.createdAt.toMillis():0;
 const notifs=snap.docs
 .map(d=>({id:d.id,...d.data()}))
-.filter(n=>n.uid===uid)
+.sort((a,b)=>ms(b)-ms(a))
 .slice(0,20);
 setNotifications(notifs);
 setUnreadCount(notifs.filter(n=>!n.read).length);
@@ -716,11 +728,13 @@ setUnreadCount(0);
 }catch(e){}
 }
 function loadWallet(uid){
-const {collection,onSnapshot,query,orderBy}=window._gbFirestore;
+const {collection,onSnapshot,query,where}=window._gbFirestore;
 try{
-const q=query(collection(window._gbDb,"wallets"),orderBy("createdAt","desc"));
-onSnapshot(q,snap=>{
-const userWallet=snap.docs.map(d=>({id:d.id,...d.data()})).find(w=>w.uid===uid);
+const q=query(collection(window._gbDb,"wallets"),where("uid","==",uid));
+if(walletUnsubRef.current)walletUnsubRef.current();
+walletUnsubRef.current=onSnapshot(q,snap=>{
+const t=w=>w.createdAt&&w.createdAt.toMillis?w.createdAt.toMillis():(Date.parse(w.createdAt)||0);
+const userWallet=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>t(b)-t(a))[0];
 setWalletBalance(userWallet?.balance||0);
 });
 }catch(e){console.log("Wallet error:",e);}
@@ -776,25 +790,41 @@ players:arrayUnion({name:user.displayName||user.email,uid:user.uid,pos:"Player",
 });
 setWalletBalance(prev=>prev-price);
 setPayDone(true);
-setTimeout(()=>{setPayScreen(false);setPayDone(false);},2200);
+setTimeout(()=>{setPayScreen(false);setPayDone(false);},1200);
 showToast("Paid from wallet! You're in! 🏆");
 await sendNotification(user.uid,"✅ Joined via Wallet!",`You paid £${price.toFixed(2)} from your Golden Boot wallet to join "${game.title}". Remaining balance: £${(walletBalance-price).toFixed(2)} — Golden Boot 🏆`,"success");
 await sendNotification(game.hostUid,"🏃 New player joined!",`${user.displayName||"A player"} has joined "${game.title}". You now have ${(game.players||[]).length+1} players signed up!`,"info");
 }catch(e){showToast("Error paying from wallet.");}
 }
 async function handleDropout(game){
-if(!user)return;
+if(!user||busy)return;
 const locked=dropoutLocked(game);
 if(!window.confirm(locked?
 "⚠️ You are dropping out within 24 hours of kickoff. You will NOT receive a refund — your payment is forfeited. Your spot will reopen at £1 for another player. Are you sure?":
 "Are you sure you want to leave this game? You will receive a refund to your wallet."
 ))return;
-const {doc,updateDoc,arrayUnion,arrayRemove}=window._gbFirestore;
+const {doc,updateDoc,runTransaction}=window._gbFirestore;
 const db=window._gbDb;
+setBusy("leave");
 try{
-const player=(game.players||[]).find(p=>p.uid===user.uid);
+const ref=doc(db,"games",game.id);
+const removed=await runTransaction(db,async tx=>{
+const snap=await tx.get(ref);
+if(!snap.exists())return false;
+const data=snap.data();
+const players=data.players||[];
+if(!players.some(p=>p.uid===user.uid))return false;
+const upd={players:players.filter(p=>p.uid!==user.uid)};
+if(locked)upd.prepaidSpots=(data.prepaidSpots||0)+1;
+tx.update(ref,upd);
+return true;
+});
+setBusy("");
+if(!removed){showToast("You're not in this game any more.");go("games");return;}
+go("games");
 if(!locked){
 const price=playerPrice(game);
+try{
 const walletSnap=await window._gbFirestore.getDoc(doc(db,"wallets",user.uid));
 if(walletSnap.exists()){
 await updateDoc(doc(db,"wallets",user.uid),{balance:(walletSnap.data().balance||0)+price});
@@ -802,16 +832,15 @@ await updateDoc(doc(db,"wallets",user.uid),{balance:(walletSnap.data().balance||
 await window._gbFirestore.addDoc(window._gbFirestore.collection(db,"wallets"),{uid:user.uid,name:user.displayName||user.email,balance:price,createdAt:new Date().toISOString()});
 }
 setWalletBalance(prev=>prev+price);
-await sendNotification(user.uid,"🔄 Refund to Wallet",`£${price.toFixed(2)} has been refunded to your Golden Boot wallet after leaving "${game.title}".`,"success");
-showToast("Refund added to your Golden Boot wallet! 💰");
+sendNotification(user.uid,"🔄 Refund to Wallet",`£${price.toFixed(2)} has been refunded to your Golden Boot wallet after leaving "${game.title}".`,"success");
+showToast("You've left the game. Refund added to your wallet! 💰");
+}catch(e){showToast("You've left the game, but the refund didn't go through. Please contact us.");}
 }else{
-await updateDoc(doc(db,"games",game.id),{prepaidSpots:(game.prepaidSpots||0)+1});
-await sendNotification(user.uid,"⚠️ No Refund — Late Dropout",`You dropped out of "${game.title}" within 24 hours of kickoff. No refund has been issued as per our late dropout policy.`,"warning");
+sendNotification(user.uid,"⚠️ No Refund — Late Dropout",`You dropped out of "${game.title}" within 24 hours of kickoff. No refund has been issued as per our late dropout policy.`,"warning");
 showToast("You have left the game. No refund as per late dropout policy.");
 }
-await updateDoc(doc(db,"games",game.id),{players:arrayRemove(player)});
-go("games");
-}catch(e){showToast("Error leaving game. Try again.");}
+if(game.hostUid&&game.hostUid!==user.uid)sendNotification(game.hostUid,"🚪 Player left",`${user.displayName||"A player"} has left "${game.title}". A spot is open again.`,"info");
+}catch(e){setBusy("");console.log("Leave error:",e);showToast("Error leaving game. Try again.");}
 }
 async function handleSignOut(){
 await window._gbAuthFns.signOut(window._gbAuth);
@@ -820,7 +849,9 @@ setGames([]);showToast("Signed out! 👋");go("home");
 async function createGame(){
 if(!newGame.title||!newGame.location||!newGame.date||!newGame.time)return showToast("Please fill in all fields.");
 if(!user)return showToast("Please sign in first!");
+if(busy)return;
 const {collection,addDoc,serverTimestamp}=window._gbFirestore;
+setBusy("create");
 try{
 await addDoc(collection(window._gbDb,"games"),{
 ...newGame,price:PRICE,host:user.displayName||user.email,hostUid:user.uid,
@@ -831,25 +862,42 @@ createdAt:serverTimestamp(),
 setNewGame({title:"",format:"5-a-side",location:"",date:"",time:"",notes:""});
 showToast("Game created! 🏟️");if(window.trackEvent)window.trackEvent('game_created',{format:newGame.format,location:newGame.location});
 sendNotification(user.uid,"🏆 Game Created!","Your game '"+newGame.title+"' on "+newGame.date+" at "+newGame.time+" is live. Share goldenbootfc.co.uk with your players!","success");
+setBusy("");
 go("games");
-}catch(e){showToast("Error creating game. Please try again.");}
+}catch(e){setBusy("");showToast("Error creating game. Please try again.");}
 }
 async function joinGame(game){
-if(!user){go("auth");return;}
-if((game.players||[]).find(p=>p.uid===user.uid))return showToast("You're already in this game!");
-if(spots(game)<=0)return showToast("This game is full — join the waitlist!");
-const {doc,updateDoc,arrayUnion}=window._gbFirestore;
+if(!user){go("auth");return false;}
+if((game.players||[]).find(p=>p.uid===user.uid)){showToast("You're already in this game!");return false;}
+if(spots(game)<=0){showToast("This game is full — join the waitlist!");return false;}
+const {doc,runTransaction}=window._gbFirestore;
+const db=window._gbDb;
+const ref=doc(db,"games",game.id);
+let result;
 try{
-await updateDoc(doc(window._gbDb,"games",game.id),{
-players:arrayUnion({name:user.displayName||user.email,uid:user.uid,pos:"Player",level:"Casual"})
+result=await runTransaction(db,async tx=>{
+const snap=await tx.get(ref);
+if(!snap.exists())return "gone";
+const data=snap.data();
+const players=data.players||[];
+if(players.some(p=>p.uid===user.uid))return "already";
+if(players.length>=(FMT_SLOTS[data.format]||10))return "full";
+tx.update(ref,{players:[...players,{name:user.displayName||user.email,uid:user.uid,pos:"Player",level:"Casual"}]});
+return "ok";
 });
+}catch(e){console.log("Join error:",e);showToast("Error joining. Try again.");return false;}
+if(result==="already"){setPayScreen(false);showToast("You're already in this game!");return false;}
+if(result==="full"){setPayScreen(false);showToast("Sorry, this game just filled up — join the waitlist!");return false;}
+if(result==="gone"){setPayScreen(false);showToast("This game no longer exists.");return false;}
+try{
 setPayDone(true);
-setTimeout(()=>{setPayScreen(false);setPayDone(false);},2200);
+setTimeout(()=>{setPayScreen(false);setPayDone(false);},1200);
 showToast("You're in! See you on the pitch 🏆");
 sendNotification(user.uid,"\u2705 Booking Confirmed!","You joined '"+game.title+"' on "+game.date+" at "+game.time+". \uD83D\uDCCD "+game.location,"success");
 sendNotification(game.hostUid,"\u26A1 New Player!",""+( user.displayName||user.email)+" just joined '"+game.title+"'.","info");;if(window.trackEvent)window.trackEvent('join_game',{game_title:game.title,format:game.format});
 scheduleReminder(game);
-}catch(e){showToast("Error joining. Try again.");}
+}catch(e){console.log("Post-join error:",e);}
+return true;
 }
 async function joinWaitlist(game){
 if(!user){go("auth");return;}
@@ -861,6 +909,21 @@ waitlist:arrayUnion({name:user.displayName||user.email,uid:user.uid})
 });
 showToast("Added to waitlist! We'll notify you if a spot opens. ⏳");if(window.trackEvent)window.trackEvent('join_waitlist',{game_title:game.title});
 }catch(e){showToast("Error joining waitlist.");}
+}
+function canDeleteGame(game){
+if(!user||game.hostUid!==user.uid)return false;
+const others=(game.players||[]).filter(p=>p.uid!==user.uid).length;
+return others===0||game.status==="cancelled"||gameIsOver(game);
+}
+async function deleteGame(game){
+if(!canDeleteGame(game))return showToast("Cancel the game first — other players are still signed up.");
+if(!window.confirm(`Delete "${game.title}"? This removes it for everyone and can't be undone.`))return;
+const {doc,deleteDoc}=window._gbFirestore;
+try{
+await deleteDoc(doc(window._gbDb,"games",game.id));
+if(selected&&selected.id===game.id)setSelected(null);
+showToast("Game deleted 🗑️");
+}catch(e){console.log("Delete error:",e);showToast("Error deleting game. Try again.");}
 }
 async function cancelGame(game){
 if(!user||user.uid!==game.hostUid)return showToast("Only the host can cancel this game.");
@@ -1098,7 +1161,7 @@ return(
 <div id="stripe-card-element" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"12px 14px",minHeight:44,color:"#fff"}}/>
 <div id="stripe-errors" style={{color:"#ff5252",fontSize:12,marginTop:8}}/>
 </div>
-<StripePaymentForm game={game} user={user} gamePrice={playerPrice(game)} onSuccess={()=>{setPayDone(true);setTimeout(()=>{setPayScreen(false);setPayDone(false);},2200);}} onError={(e)=>showToast(e)} showToast={showToast} joinGame={joinGame}/>
+<StripePaymentForm game={game} user={user} gamePrice={playerPrice(game)} onSuccess={()=>{setPayDone(true);setTimeout(()=>{setPayScreen(false);setPayDone(false);},1200);}} onError={(e)=>showToast(e)} showToast={showToast} joinGame={joinGame}/>
 <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:10}}><span style={{fontSize:12}}>🔒</span><span style={{fontSize:12,color:"var(--muted)"}}>Payments secured by Stripe · SSL encrypted</span></div>
 <div style={{textAlign:"center",marginTop:8}}><img src="https://cdn.brandfetch.io/idxAg10C0L/theme/dark/logo.svg" alt="Stripe" style={{height:20,opacity:0.5}}/></div>
 </div>
@@ -1543,8 +1606,8 @@ return(
 🔒 Drop-outs are locked {DROPOUT_CUTOFF_HOURS} hours before kick-off to protect the host. Contact the host directly if you can't make it.
 </div>
 ):(
-<button onClick={()=>handleDropout(game)} className="btn-danger" style={{marginBottom:0,fontSize:12,padding:"8px 16px",width:"auto",display:"inline-block"}}>
-Leave Game
+<button onClick={()=>handleDropout(game)} disabled={busy==="leave"} className="btn-danger" style={{marginBottom:0,fontSize:12,padding:"8px 16px",width:"auto",display:"inline-block",opacity:busy==="leave"?0.6:1}}>
+{busy==="leave"?"Leaving...":"Leave Game"}
 </button>
 )}
 </div>
@@ -1642,7 +1705,7 @@ return(
 <div style={{width:18,height:18,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:newGame.womensOnly?23:3,transition:"left 0.3s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
 </div>
 </div>
-<HostPitchNotice go={go} onConfirm={createGame}/>
+<HostPitchNotice go={go} onConfirm={createGame} busy={busy==="create"}/>
 </div>
 {}
 <div className={"screen fade-up"+(screen==="pitches"?" active":"")} id="s-pitches">
@@ -1823,10 +1886,38 @@ return acc;
 </div>
 {}
 <div className={"screen fade-up"+(screen==="ai"?" active":"")} id="s-ai">
-<div className="sec-title">✨ <span>AI</span> Assistant</div>
-<div className="ai-card"><div className="ai-label">🎯 Smart Recommendation</div><div style={{fontSize:13,color:"#ddd",lineHeight:1.7}}>Based on your skill level, we recommend joining a <span className="gold">5-a-side</span> game this week. 3 players at your level are looking for games nearby.</div></div>
-<div className="ai-card"><div className="ai-label">📈 Performance Trends</div><div style={{fontSize:12,color:"#aaa",marginBottom:10}}>Your last 5 games</div><div style={{display:"flex",alignItems:"flex-end",gap:5,height:54,marginBottom:8}}>{[60,75,65,85,100].map((h,i)=>(<div key={i} style={{flex:1,background:`rgba(255,215,0,${0.2+i*0.16})`,borderRadius:"3px 3px 0 0",height:h+"%"}}/>))}</div><div style={{fontSize:11,color:"var(--muted)"}}>Rating improving — up <span className="gold">+0.6</span> this month 📈</div></div>
-<div className="ai-card"><div className="ai-label">⚖️ Auto-Balanced Teams</div><div style={{fontSize:13,color:"#ddd",lineHeight:1.7}}>AI has balanced teams by skill score. Average difference: <span className="gold">0.2 points</span> — fairest split possible.</div></div>
+<div className="sec-title">✨ <span>Smart</span> Picks</div>
+{(()=>{
+const kick=g=>new Date(g.date+"T"+(g.time||"00:00")).getTime();
+const now=Date.now();
+const live=games.filter(g=>g.status!=="cancelled"&&g.date);
+const upcoming=live.filter(g=>kick(g)>now).sort((x,y)=>kick(x)-kick(y));
+const mine=user?live.filter(g=>(g.players||[]).some(p=>p.uid===user.uid)):[];
+const myUpcoming=mine.filter(g=>kick(g)>now).sort((x,y)=>kick(x)-kick(y));
+const played=mine.filter(g=>kick(g)<=now).length;
+const pick=upcoming.find(g=>spots(g)>0&&!(user&&(g.players||[]).some(p=>p.uid===user.uid)));
+const next=myUpcoming[0];
+const teams=[[],[]];
+if(next)(next.players||[]).forEach((p,i)=>teams[i%2].push(p.name));
+const open=g=>{setSelected(g);go("gamedetail");};
+return(<>
+<div className="ai-card"><div className="ai-label">🎯 Next Open Game</div>
+{pick?(<div style={{fontSize:13,color:"#ddd",lineHeight:1.7}}><span className="gold">{pick.title}</span> — {pick.format} at {pick.location}, {pick.date} {pick.time}. {spots(pick)} spot{spots(pick)===1?"":"s"} left.
+<button className="btn-gold" style={{marginTop:10}} onClick={()=>open(pick)}>View Game ⚽</button></div>)
+:(<div style={{fontSize:13,color:"#ddd",lineHeight:1.7}}>No open games right now. Why not host one?<button className="btn-gold" style={{marginTop:10}} onClick={()=>go("create")}>Host a Game 🏟️</button></div>)}
+</div>
+<div className="ai-card"><div className="ai-label">📈 Your Football</div>
+{user?(<div style={{display:"flex",gap:10}}>
+{[{n:played,l:"Played"},{n:myUpcoming.length,l:"Upcoming"},{n:mine.filter(g=>g.hostUid===user.uid).length,l:"Hosted"}].map(x=>(<div key={x.l} style={{flex:1,textAlign:"center"}}><div className="gold" style={{fontSize:24,fontWeight:800,fontFamily:"'Barlow Condensed',sans-serif"}}>{x.n}</div><div style={{fontSize:11,color:"var(--muted)"}}>{x.l}</div></div>))}
+</div>):(<div style={{fontSize:13,color:"#ddd"}}>Sign in to see your games.</div>)}
+</div>
+<div className="ai-card"><div className="ai-label">⚖️ Team Picker</div>
+{next?(<div style={{fontSize:13,color:"#ddd",lineHeight:1.7}}>Your next game: <span className="gold">{next.title}</span> ({next.date})
+<div style={{display:"flex",gap:10,marginTop:8}}>{teams.map((t,i)=>(<div key={i} style={{flex:1,background:"rgba(0,0,0,0.3)",borderRadius:8,padding:8}}><div style={{fontSize:11,color:"var(--gold)",marginBottom:4}}>{i?"Bibs":"Non-bibs"}</div>{t.length?t.map((n,j)=><div key={j} style={{fontSize:12}}>{n}</div>):<div style={{fontSize:12,color:"var(--muted)"}}>—</div>}</div>))}</div>
+</div>):(<div style={{fontSize:13,color:"#ddd"}}>Join a game and we'll split the players into two teams here.</div>)}
+</div>
+</>);
+})()}
 </div>
 {}
 <div className={"screen fade-up"+(screen==="profile"?" active":"")} id="s-profile">
@@ -1843,11 +1934,23 @@ return acc;
 {[{n:games.filter(g=>(g.players||[]).find(p=>p.uid===user.uid)).length.toString(),l:"My Games"},{n:"4.8",l:"Avg Rating"},{n:"8.7",l:"Trust Score"}].map(s=>(<div key={s.l} className="stat-card"><div className="stat-n">{s.n}</div><div className="stat-l">{s.l}</div></div>))}
 </div>
 <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:8,fontFamily:"'Barlow Condensed',sans-serif"}}>My Games</div>
-{games.filter(g=>(g.players||[]).find(p=>p.uid===user.uid)).map(g=>(<div key={g.id} className="card" style={{padding:"10px 13px"}} onClick={()=>{setSelected(g);go("gamedetail");}}><div style={{fontWeight:600,fontSize:13,color:"#eee"}}>{g.title}</div><div className="muted" style={{marginTop:3}}>📅 {g.date} · {g.format}</div></div>))}
-{games.filter(g=>(g.players||[]).find(p=>p.uid===user.uid)).length===0&&<div style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"20px 0"}}>No games yet — browse and join one! ⚽</div>}
+{(()=>{
+const mine=games.filter(g=>(g.players||[]).some(p=>p.uid===user.uid)||g.hostUid===user.uid);
+const upcoming=mine.filter(g=>!gameIsOver(g)&&g.status!=="cancelled");
+const past=mine.filter(g=>gameIsOver(g)||g.status==="cancelled");
+const row=g=>(<div key={g.id} className="card" style={{padding:"10px 13px",display:"flex",alignItems:"center",gap:10}} onClick={()=>{setSelected(g);go("gamedetail");}}>
+<div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#eee"}}>{g.title}{g.status==="cancelled"&&<span style={{color:"#ff5252",fontSize:11}}> · Cancelled</span>}</div><div className="muted" style={{marginTop:3}}>📅 {g.date} · {g.format}{g.hostUid===user.uid?" · You're hosting":""}</div></div>
+{canDeleteGame(g)&&<button onClick={e=>{e.stopPropagation();deleteGame(g);}} aria-label="Delete game" style={{background:"rgba(255,82,82,0.1)",border:"1px solid rgba(255,82,82,0.3)",color:"#ff8a80",borderRadius:8,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>🗑️ Delete</button>}
+</div>);
+return(<>
+{upcoming.map(row)}
+{upcoming.length===0&&<div style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"20px 0"}}>No upcoming games — browse and join one! ⚽</div>}
+{past.length>0&&(<details style={{marginTop:8}}><summary style={{fontSize:12,color:"var(--muted)",cursor:"pointer",marginBottom:8}}>Past & cancelled games ({past.length})</summary>{past.map(row)}</details>)}
+</>);
+})()}
 <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.15)",borderRadius:14,padding:16,marginBottom:16,marginTop:8}}>
 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:12,color:"var(--gold)",letterSpacing:1,marginBottom:6}}>🔗 SHARE GOLDEN BOOT</div>
-<div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7}}>Share <strong style={{color:"#fff"}}>kickoff-app-ar55.vercel.app</strong> with friends!</div>
+<div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7}}>Share <strong style={{color:"#fff"}}>goldenbootfc.co.uk</strong> with friends!</div>
 </div>
 {}
 <div style={{background:"rgba(74,255,154,0.05)",border:"1px solid rgba(74,255,154,0.2)",borderRadius:14,padding:16,marginBottom:14}}>
