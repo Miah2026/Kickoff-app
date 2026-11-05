@@ -68,7 +68,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc, where, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc, where, runTransaction, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     const firebaseConfig = {
       apiKey: "AIzaSyA53AV8jLn1mkV1KbYAg-azpKxI5hkLMdY",
       authDomain: "golden-boot-5d3a9.firebaseapp.com",
@@ -82,7 +82,7 @@
     const db = getFirestore(app);
     window._gbAuth = auth;
     window._gbDb = db;
-    window._gbFirestore = { collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc, where, runTransaction };
+    window._gbFirestore = { collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc, where, runTransaction, deleteDoc };
     window._gbAuthFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail };
     window._gbReady = true;
     window.dispatchEvent(new Event("firebase-ready"));
@@ -909,6 +909,21 @@ waitlist:arrayUnion({name:user.displayName||user.email,uid:user.uid})
 });
 showToast("Added to waitlist! We'll notify you if a spot opens. ⏳");if(window.trackEvent)window.trackEvent('join_waitlist',{game_title:game.title});
 }catch(e){showToast("Error joining waitlist.");}
+}
+function canDeleteGame(game){
+if(!user||game.hostUid!==user.uid)return false;
+const others=(game.players||[]).filter(p=>p.uid!==user.uid).length;
+return others===0||game.status==="cancelled"||gameIsOver(game);
+}
+async function deleteGame(game){
+if(!canDeleteGame(game))return showToast("Cancel the game first — other players are still signed up.");
+if(!window.confirm(`Delete "${game.title}"? This removes it for everyone and can't be undone.`))return;
+const {doc,deleteDoc}=window._gbFirestore;
+try{
+await deleteDoc(doc(window._gbDb,"games",game.id));
+if(selected&&selected.id===game.id)setSelected(null);
+showToast("Game deleted 🗑️");
+}catch(e){console.log("Delete error:",e);showToast("Error deleting game. Try again.");}
 }
 async function cancelGame(game){
 if(!user||user.uid!==game.hostUid)return showToast("Only the host can cancel this game.");
@@ -1919,11 +1934,23 @@ return(<>
 {[{n:games.filter(g=>(g.players||[]).find(p=>p.uid===user.uid)).length.toString(),l:"My Games"},{n:"4.8",l:"Avg Rating"},{n:"8.7",l:"Trust Score"}].map(s=>(<div key={s.l} className="stat-card"><div className="stat-n">{s.n}</div><div className="stat-l">{s.l}</div></div>))}
 </div>
 <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:8,fontFamily:"'Barlow Condensed',sans-serif"}}>My Games</div>
-{games.filter(g=>(g.players||[]).find(p=>p.uid===user.uid)).map(g=>(<div key={g.id} className="card" style={{padding:"10px 13px"}} onClick={()=>{setSelected(g);go("gamedetail");}}><div style={{fontWeight:600,fontSize:13,color:"#eee"}}>{g.title}</div><div className="muted" style={{marginTop:3}}>📅 {g.date} · {g.format}</div></div>))}
-{games.filter(g=>(g.players||[]).find(p=>p.uid===user.uid)).length===0&&<div style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"20px 0"}}>No games yet — browse and join one! ⚽</div>}
+{(()=>{
+const mine=games.filter(g=>(g.players||[]).some(p=>p.uid===user.uid)||g.hostUid===user.uid);
+const upcoming=mine.filter(g=>!gameIsOver(g)&&g.status!=="cancelled");
+const past=mine.filter(g=>gameIsOver(g)||g.status==="cancelled");
+const row=g=>(<div key={g.id} className="card" style={{padding:"10px 13px",display:"flex",alignItems:"center",gap:10}} onClick={()=>{setSelected(g);go("gamedetail");}}>
+<div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#eee"}}>{g.title}{g.status==="cancelled"&&<span style={{color:"#ff5252",fontSize:11}}> · Cancelled</span>}</div><div className="muted" style={{marginTop:3}}>📅 {g.date} · {g.format}{g.hostUid===user.uid?" · You're hosting":""}</div></div>
+{canDeleteGame(g)&&<button onClick={e=>{e.stopPropagation();deleteGame(g);}} aria-label="Delete game" style={{background:"rgba(255,82,82,0.1)",border:"1px solid rgba(255,82,82,0.3)",color:"#ff8a80",borderRadius:8,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>🗑️ Delete</button>}
+</div>);
+return(<>
+{upcoming.map(row)}
+{upcoming.length===0&&<div style={{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"20px 0"}}>No upcoming games — browse and join one! ⚽</div>}
+{past.length>0&&(<details style={{marginTop:8}}><summary style={{fontSize:12,color:"var(--muted)",cursor:"pointer",marginBottom:8}}>Past & cancelled games ({past.length})</summary>{past.map(row)}</details>)}
+</>);
+})()}
 <div style={{background:"rgba(255,215,0,0.05)",border:"1px solid rgba(255,215,0,0.15)",borderRadius:14,padding:16,marginBottom:16,marginTop:8}}>
 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:12,color:"var(--gold)",letterSpacing:1,marginBottom:6}}>🔗 SHARE GOLDEN BOOT</div>
-<div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7}}>Share <strong style={{color:"#fff"}}>kickoff-app-ar55.vercel.app</strong> with friends!</div>
+<div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7}}>Share <strong style={{color:"#fff"}}>goldenbootfc.co.uk</strong> with friends!</div>
 </div>
 {}
 <div style={{background:"rgba(74,255,154,0.05)",border:"1px solid rgba(74,255,154,0.2)",borderRadius:14,padding:16,marginBottom:14}}>
