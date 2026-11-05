@@ -68,7 +68,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc, where, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     const firebaseConfig = {
       apiKey: "AIzaSyA53AV8jLn1mkV1KbYAg-azpKxI5hkLMdY",
       authDomain: "golden-boot-5d3a9.firebaseapp.com",
@@ -82,7 +82,7 @@
     const db = getFirestore(app);
     window._gbAuth = auth;
     window._gbDb = db;
-    window._gbFirestore = { collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc };
+    window._gbFirestore = { collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc, where, runTransaction };
     window._gbAuthFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail };
     window._gbReady = true;
     window.dispatchEvent(new Event("firebase-ready"));
@@ -362,7 +362,7 @@ return(
 </div>
 );
 }
-function HostPitchNotice({go, onConfirm}){
+function HostPitchNotice({go, onConfirm, busy}){
 const [checked, setChecked] = React.useState(false);
 return(
 <div>
@@ -387,8 +387,8 @@ Haven't found a pitch yet? Use our pitch finder to discover venues near you with
 I understand that I am responsible for booking and paying for the pitch. I have confirmed the venue is available on this date and time.
 </div>
 </div>
-<button className="btn-gold" onClick={()=>{if(!checked){alert("Please confirm you have read the pitch booking notice above.");return;}onConfirm();}} style={{opacity:checked?1:0.6}}>
-Create Game 🏟️
+<button className="btn-gold" disabled={busy} onClick={()=>{if(busy)return;if(!checked){alert("Please confirm you have read the pitch booking notice above.");return;}onConfirm();}} style={{opacity:checked&&!busy?1:0.6}}>
+{busy?"Creating game...":"Create Game 🏟️"}
 </button>
 </div>
 );
@@ -500,7 +500,8 @@ async function handlePay(){
 if(!stripeRef.current||!cardRef.current)return showToast("Payment system loading...");
 setLoading(true);
 try{
-await joinGame(game);
+const ok=await joinGame(game);
+if(ok===false){setLoading(false);return;}
 onSuccess();
 if(window.trackEvent)window.trackEvent('purchase',{currency:'GBP',value:9,game_title:game.title});
 }catch(e){
@@ -552,7 +553,7 @@ return parseFloat((split+1).toFixed(2));
 return g.playerPrice||g.price||9;
 };
 const hostPrice=g=>1.00;
-const isJoined=game=>user&&(game.players||[]).find
+const isJoined=game=>!!(user&&(game.players||[]).some(p=>p.uid===user.uid));
 const [newGame,setNewGame]=useState({title:"",format:"5-a-side",location:"",date:"",time:"",notes:"",pitchCost:"",isPrivate:false,womensOnly:false});
 const [socialTab,setSocialTab]=useState("ratings");
 const [ratings,setRatings]=useState({});
@@ -568,6 +569,10 @@ const [chatMsgs,setChatMsgs]=useState([]);
 const [chatMsg,setChatMsg]=useState("");
 const [chatLoading,setChatLoading]=useState(false);
 const chatUnsubRef=useRef(null);
+const gamesUnsubRef=useRef(null);
+const notifsUnsubRef=useRef(null);
+const walletUnsubRef=useRef(null);
+const [busy,setBusy]=useState("");
 const chatEndRef=useRef(null);
 const [potmVote,setPotmVote]=useState(null);
 useEffect(()=>{
@@ -578,7 +583,11 @@ function initFb(){
 const {onAuthStateChanged}=window._gbAuthFns;
 onAuthStateChanged(window._gbAuth,u=>{
 if(u){setUser(u);loadGames();loadNotifications(u.uid);loadWallet(u.uid);}
-else{setUser(null);}
+else{
+setUser(null);
+[gamesUnsubRef,notifsUnsubRef,walletUnsubRef].forEach(r=>{if(r.current){r.current();r.current=null;}});
+setNotifications([]);setUnreadCount(0);setWalletBalance(0);
+}
 setLoading(false);
 });
 }
@@ -587,7 +596,8 @@ const {collection,onSnapshot,query,orderBy}=window._gbFirestore;
 const db=window._gbDb;
 try{
 const q=query(collection(db,"games"),orderBy("createdAt","desc"));
-onSnapshot(q,snap=>{
+if(gamesUnsubRef.current)gamesUnsubRef.current();
+gamesUnsubRef.current=onSnapshot(q,snap=>{
 const gs=snap.docs.map(d=>({id:d.id,...d.data()}));
 setGames(gs);
 if(user&&user.uid){
@@ -672,10 +682,10 @@ createdAt:serverTimestamp(),
 });
 }catch(e){console.log("Notification error:",e);}
 setWelcomeMsg(authForm.name);
-loadGames();go("games");
+go("games");
 }else{
 await signInWithEmailAndPassword(auth,authForm.email,authForm.password);
-showToast("Welcome back! 🏆");if(window.trackEvent)window.trackEvent('login',{method:'email'});loadGames();loadNotifications(cred?.user?.uid||window._gbAuth.currentUser?.uid);go("games");
+showToast("Welcome back! 🏆");if(window.trackEvent)window.trackEvent('login',{method:'email'});go("games");
 }
 }catch(e){
 const msgs={"auth/email-already-in-use":"That email is already registered.","auth/invalid-email":"Please enter a valid email.","auth/weak-password":"Password must be at least 6 characters.","auth/user-not-found":"No account found. Please sign up.","auth/wrong-password":"Incorrect password.","auth/invalid-credential":"Email or password is incorrect."};
@@ -693,13 +703,15 @@ createdAt: serverTimestamp(),
 }catch(e){console.log("Notification error:",e);}
 }
 function loadNotifications(uid){
-const {collection,onSnapshot,query,orderBy}=window._gbFirestore;
+const {collection,onSnapshot,query,where}=window._gbFirestore;
 try{
-const q=query(collection(window._gbDb,"notifications"),orderBy("createdAt","desc"));
-onSnapshot(q,snap=>{
+const q=query(collection(window._gbDb,"notifications"),where("uid","==",uid));
+if(notifsUnsubRef.current)notifsUnsubRef.current();
+notifsUnsubRef.current=onSnapshot(q,snap=>{
+const ms=n=>n.createdAt&&n.createdAt.toMillis?n.createdAt.toMillis():0;
 const notifs=snap.docs
 .map(d=>({id:d.id,...d.data()}))
-.filter(n=>n.uid===uid)
+.sort((a,b)=>ms(b)-ms(a))
 .slice(0,20);
 setNotifications(notifs);
 setUnreadCount(notifs.filter(n=>!n.read).length);
@@ -716,11 +728,13 @@ setUnreadCount(0);
 }catch(e){}
 }
 function loadWallet(uid){
-const {collection,onSnapshot,query,orderBy}=window._gbFirestore;
+const {collection,onSnapshot,query,where}=window._gbFirestore;
 try{
-const q=query(collection(window._gbDb,"wallets"),orderBy("createdAt","desc"));
-onSnapshot(q,snap=>{
-const userWallet=snap.docs.map(d=>({id:d.id,...d.data()})).find(w=>w.uid===uid);
+const q=query(collection(window._gbDb,"wallets"),where("uid","==",uid));
+if(walletUnsubRef.current)walletUnsubRef.current();
+walletUnsubRef.current=onSnapshot(q,snap=>{
+const t=w=>w.createdAt&&w.createdAt.toMillis?w.createdAt.toMillis():(Date.parse(w.createdAt)||0);
+const userWallet=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>t(b)-t(a))[0];
 setWalletBalance(userWallet?.balance||0);
 });
 }catch(e){console.log("Wallet error:",e);}
@@ -776,25 +790,41 @@ players:arrayUnion({name:user.displayName||user.email,uid:user.uid,pos:"Player",
 });
 setWalletBalance(prev=>prev-price);
 setPayDone(true);
-setTimeout(()=>{setPayScreen(false);setPayDone(false);},2200);
+setTimeout(()=>{setPayScreen(false);setPayDone(false);},1200);
 showToast("Paid from wallet! You're in! 🏆");
 await sendNotification(user.uid,"✅ Joined via Wallet!",`You paid £${price.toFixed(2)} from your Golden Boot wallet to join "${game.title}". Remaining balance: £${(walletBalance-price).toFixed(2)} — Golden Boot 🏆`,"success");
 await sendNotification(game.hostUid,"🏃 New player joined!",`${user.displayName||"A player"} has joined "${game.title}". You now have ${(game.players||[]).length+1} players signed up!`,"info");
 }catch(e){showToast("Error paying from wallet.");}
 }
 async function handleDropout(game){
-if(!user)return;
+if(!user||busy)return;
 const locked=dropoutLocked(game);
 if(!window.confirm(locked?
 "⚠️ You are dropping out within 24 hours of kickoff. You will NOT receive a refund — your payment is forfeited. Your spot will reopen at £1 for another player. Are you sure?":
 "Are you sure you want to leave this game? You will receive a refund to your wallet."
 ))return;
-const {doc,updateDoc,arrayUnion,arrayRemove}=window._gbFirestore;
+const {doc,updateDoc,runTransaction}=window._gbFirestore;
 const db=window._gbDb;
+setBusy("leave");
 try{
-const player=(game.players||[]).find(p=>p.uid===user.uid);
+const ref=doc(db,"games",game.id);
+const removed=await runTransaction(db,async tx=>{
+const snap=await tx.get(ref);
+if(!snap.exists())return false;
+const data=snap.data();
+const players=data.players||[];
+if(!players.some(p=>p.uid===user.uid))return false;
+const upd={players:players.filter(p=>p.uid!==user.uid)};
+if(locked)upd.prepaidSpots=(data.prepaidSpots||0)+1;
+tx.update(ref,upd);
+return true;
+});
+setBusy("");
+if(!removed){showToast("You're not in this game any more.");go("games");return;}
+go("games");
 if(!locked){
 const price=playerPrice(game);
+try{
 const walletSnap=await window._gbFirestore.getDoc(doc(db,"wallets",user.uid));
 if(walletSnap.exists()){
 await updateDoc(doc(db,"wallets",user.uid),{balance:(walletSnap.data().balance||0)+price});
@@ -802,16 +832,15 @@ await updateDoc(doc(db,"wallets",user.uid),{balance:(walletSnap.data().balance||
 await window._gbFirestore.addDoc(window._gbFirestore.collection(db,"wallets"),{uid:user.uid,name:user.displayName||user.email,balance:price,createdAt:new Date().toISOString()});
 }
 setWalletBalance(prev=>prev+price);
-await sendNotification(user.uid,"🔄 Refund to Wallet",`£${price.toFixed(2)} has been refunded to your Golden Boot wallet after leaving "${game.title}".`,"success");
-showToast("Refund added to your Golden Boot wallet! 💰");
+sendNotification(user.uid,"🔄 Refund to Wallet",`£${price.toFixed(2)} has been refunded to your Golden Boot wallet after leaving "${game.title}".`,"success");
+showToast("You've left the game. Refund added to your wallet! 💰");
+}catch(e){showToast("You've left the game, but the refund didn't go through. Please contact us.");}
 }else{
-await updateDoc(doc(db,"games",game.id),{prepaidSpots:(game.prepaidSpots||0)+1});
-await sendNotification(user.uid,"⚠️ No Refund — Late Dropout",`You dropped out of "${game.title}" within 24 hours of kickoff. No refund has been issued as per our late dropout policy.`,"warning");
+sendNotification(user.uid,"⚠️ No Refund — Late Dropout",`You dropped out of "${game.title}" within 24 hours of kickoff. No refund has been issued as per our late dropout policy.`,"warning");
 showToast("You have left the game. No refund as per late dropout policy.");
 }
-await updateDoc(doc(db,"games",game.id),{players:arrayRemove(player)});
-go("games");
-}catch(e){showToast("Error leaving game. Try again.");}
+if(game.hostUid&&game.hostUid!==user.uid)sendNotification(game.hostUid,"🚪 Player left",`${user.displayName||"A player"} has left "${game.title}". A spot is open again.`,"info");
+}catch(e){setBusy("");console.log("Leave error:",e);showToast("Error leaving game. Try again.");}
 }
 async function handleSignOut(){
 await window._gbAuthFns.signOut(window._gbAuth);
@@ -820,7 +849,9 @@ setGames([]);showToast("Signed out! 👋");go("home");
 async function createGame(){
 if(!newGame.title||!newGame.location||!newGame.date||!newGame.time)return showToast("Please fill in all fields.");
 if(!user)return showToast("Please sign in first!");
+if(busy)return;
 const {collection,addDoc,serverTimestamp}=window._gbFirestore;
+setBusy("create");
 try{
 await addDoc(collection(window._gbDb,"games"),{
 ...newGame,price:PRICE,host:user.displayName||user.email,hostUid:user.uid,
@@ -831,25 +862,42 @@ createdAt:serverTimestamp(),
 setNewGame({title:"",format:"5-a-side",location:"",date:"",time:"",notes:""});
 showToast("Game created! 🏟️");if(window.trackEvent)window.trackEvent('game_created',{format:newGame.format,location:newGame.location});
 sendNotification(user.uid,"🏆 Game Created!","Your game '"+newGame.title+"' on "+newGame.date+" at "+newGame.time+" is live. Share goldenbootfc.co.uk with your players!","success");
+setBusy("");
 go("games");
-}catch(e){showToast("Error creating game. Please try again.");}
+}catch(e){setBusy("");showToast("Error creating game. Please try again.");}
 }
 async function joinGame(game){
-if(!user){go("auth");return;}
-if((game.players||[]).find(p=>p.uid===user.uid))return showToast("You're already in this game!");
-if(spots(game)<=0)return showToast("This game is full — join the waitlist!");
-const {doc,updateDoc,arrayUnion}=window._gbFirestore;
+if(!user){go("auth");return false;}
+if((game.players||[]).find(p=>p.uid===user.uid)){showToast("You're already in this game!");return false;}
+if(spots(game)<=0){showToast("This game is full — join the waitlist!");return false;}
+const {doc,runTransaction}=window._gbFirestore;
+const db=window._gbDb;
+const ref=doc(db,"games",game.id);
+let result;
 try{
-await updateDoc(doc(window._gbDb,"games",game.id),{
-players:arrayUnion({name:user.displayName||user.email,uid:user.uid,pos:"Player",level:"Casual"})
+result=await runTransaction(db,async tx=>{
+const snap=await tx.get(ref);
+if(!snap.exists())return "gone";
+const data=snap.data();
+const players=data.players||[];
+if(players.some(p=>p.uid===user.uid))return "already";
+if(players.length>=(FMT_SLOTS[data.format]||10))return "full";
+tx.update(ref,{players:[...players,{name:user.displayName||user.email,uid:user.uid,pos:"Player",level:"Casual"}]});
+return "ok";
 });
+}catch(e){console.log("Join error:",e);showToast("Error joining. Try again.");return false;}
+if(result==="already"){setPayScreen(false);showToast("You're already in this game!");return false;}
+if(result==="full"){setPayScreen(false);showToast("Sorry, this game just filled up — join the waitlist!");return false;}
+if(result==="gone"){setPayScreen(false);showToast("This game no longer exists.");return false;}
+try{
 setPayDone(true);
-setTimeout(()=>{setPayScreen(false);setPayDone(false);},2200);
+setTimeout(()=>{setPayScreen(false);setPayDone(false);},1200);
 showToast("You're in! See you on the pitch 🏆");
 sendNotification(user.uid,"\u2705 Booking Confirmed!","You joined '"+game.title+"' on "+game.date+" at "+game.time+". \uD83D\uDCCD "+game.location,"success");
 sendNotification(game.hostUid,"\u26A1 New Player!",""+( user.displayName||user.email)+" just joined '"+game.title+"'.","info");;if(window.trackEvent)window.trackEvent('join_game',{game_title:game.title,format:game.format});
 scheduleReminder(game);
-}catch(e){showToast("Error joining. Try again.");}
+}catch(e){console.log("Post-join error:",e);}
+return true;
 }
 async function joinWaitlist(game){
 if(!user){go("auth");return;}
@@ -1098,7 +1146,7 @@ return(
 <div id="stripe-card-element" style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"12px 14px",minHeight:44,color:"#fff"}}/>
 <div id="stripe-errors" style={{color:"#ff5252",fontSize:12,marginTop:8}}/>
 </div>
-<StripePaymentForm game={game} user={user} gamePrice={playerPrice(game)} onSuccess={()=>{setPayDone(true);setTimeout(()=>{setPayScreen(false);setPayDone(false);},2200);}} onError={(e)=>showToast(e)} showToast={showToast} joinGame={joinGame}/>
+<StripePaymentForm game={game} user={user} gamePrice={playerPrice(game)} onSuccess={()=>{setPayDone(true);setTimeout(()=>{setPayScreen(false);setPayDone(false);},1200);}} onError={(e)=>showToast(e)} showToast={showToast} joinGame={joinGame}/>
 <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:10}}><span style={{fontSize:12}}>🔒</span><span style={{fontSize:12,color:"var(--muted)"}}>Payments secured by Stripe · SSL encrypted</span></div>
 <div style={{textAlign:"center",marginTop:8}}><img src="https://cdn.brandfetch.io/idxAg10C0L/theme/dark/logo.svg" alt="Stripe" style={{height:20,opacity:0.5}}/></div>
 </div>
@@ -1543,8 +1591,8 @@ return(
 🔒 Drop-outs are locked {DROPOUT_CUTOFF_HOURS} hours before kick-off to protect the host. Contact the host directly if you can't make it.
 </div>
 ):(
-<button onClick={()=>handleDropout(game)} className="btn-danger" style={{marginBottom:0,fontSize:12,padding:"8px 16px",width:"auto",display:"inline-block"}}>
-Leave Game
+<button onClick={()=>handleDropout(game)} disabled={busy==="leave"} className="btn-danger" style={{marginBottom:0,fontSize:12,padding:"8px 16px",width:"auto",display:"inline-block",opacity:busy==="leave"?0.6:1}}>
+{busy==="leave"?"Leaving...":"Leave Game"}
 </button>
 )}
 </div>
@@ -1642,7 +1690,7 @@ return(
 <div style={{width:18,height:18,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:newGame.womensOnly?23:3,transition:"left 0.3s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
 </div>
 </div>
-<HostPitchNotice go={go} onConfirm={createGame}/>
+<HostPitchNotice go={go} onConfirm={createGame} busy={busy==="create"}/>
 </div>
 {}
 <div className={"screen fade-up"+(screen==="pitches"?" active":"")} id="s-pitches">
