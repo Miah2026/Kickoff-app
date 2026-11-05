@@ -503,7 +503,7 @@ try{
 const ok=await joinGame(game);
 if(ok===false){setLoading(false);return;}
 onSuccess();
-if(window.trackEvent)window.trackEvent('purchase',{currency:'GBP',value:9,game_title:game.title});
+if(window.trackEvent)window.trackEvent('purchase',{currency:'GBP',value:gamePrice,game_title:game.title});
 }catch(e){
 setLoading(false);
 onError("Payment failed. Please try again.");
@@ -1871,10 +1871,38 @@ return acc;
 </div>
 {}
 <div className={"screen fade-up"+(screen==="ai"?" active":"")} id="s-ai">
-<div className="sec-title">✨ <span>AI</span> Assistant</div>
-<div className="ai-card"><div className="ai-label">🎯 Smart Recommendation</div><div style={{fontSize:13,color:"#ddd",lineHeight:1.7}}>Based on your skill level, we recommend joining a <span className="gold">5-a-side</span> game this week. 3 players at your level are looking for games nearby.</div></div>
-<div className="ai-card"><div className="ai-label">📈 Performance Trends</div><div style={{fontSize:12,color:"#aaa",marginBottom:10}}>Your last 5 games</div><div style={{display:"flex",alignItems:"flex-end",gap:5,height:54,marginBottom:8}}>{[60,75,65,85,100].map((h,i)=>(<div key={i} style={{flex:1,background:`rgba(255,215,0,${0.2+i*0.16})`,borderRadius:"3px 3px 0 0",height:h+"%"}}/>))}</div><div style={{fontSize:11,color:"var(--muted)"}}>Rating improving — up <span className="gold">+0.6</span> this month 📈</div></div>
-<div className="ai-card"><div className="ai-label">⚖️ Auto-Balanced Teams</div><div style={{fontSize:13,color:"#ddd",lineHeight:1.7}}>AI has balanced teams by skill score. Average difference: <span className="gold">0.2 points</span> — fairest split possible.</div></div>
+<div className="sec-title">✨ <span>Smart</span> Picks</div>
+{(()=>{
+const kick=g=>new Date(g.date+"T"+(g.time||"00:00")).getTime();
+const now=Date.now();
+const live=games.filter(g=>g.status!=="cancelled"&&g.date);
+const upcoming=live.filter(g=>kick(g)>now).sort((x,y)=>kick(x)-kick(y));
+const mine=user?live.filter(g=>(g.players||[]).some(p=>p.uid===user.uid)):[];
+const myUpcoming=mine.filter(g=>kick(g)>now).sort((x,y)=>kick(x)-kick(y));
+const played=mine.filter(g=>kick(g)<=now).length;
+const pick=upcoming.find(g=>spots(g)>0&&!(user&&(g.players||[]).some(p=>p.uid===user.uid)));
+const next=myUpcoming[0];
+const teams=[[],[]];
+if(next)(next.players||[]).forEach((p,i)=>teams[i%2].push(p.name));
+const open=g=>{setSelected(g);go("gamedetail");};
+return(<>
+<div className="ai-card"><div className="ai-label">🎯 Next Open Game</div>
+{pick?(<div style={{fontSize:13,color:"#ddd",lineHeight:1.7}}><span className="gold">{pick.title}</span> — {pick.format} at {pick.location}, {pick.date} {pick.time}. {spots(pick)} spot{spots(pick)===1?"":"s"} left.
+<button className="btn-gold" style={{marginTop:10}} onClick={()=>open(pick)}>View Game ⚽</button></div>)
+:(<div style={{fontSize:13,color:"#ddd",lineHeight:1.7}}>No open games right now. Why not host one?<button className="btn-gold" style={{marginTop:10}} onClick={()=>go("create")}>Host a Game 🏟️</button></div>)}
+</div>
+<div className="ai-card"><div className="ai-label">📈 Your Football</div>
+{user?(<div style={{display:"flex",gap:10}}>
+{[{n:played,l:"Played"},{n:myUpcoming.length,l:"Upcoming"},{n:mine.filter(g=>g.hostUid===user.uid).length,l:"Hosted"}].map(x=>(<div key={x.l} style={{flex:1,textAlign:"center"}}><div className="gold" style={{fontSize:24,fontWeight:800,fontFamily:"'Barlow Condensed',sans-serif"}}>{x.n}</div><div style={{fontSize:11,color:"var(--muted)"}}>{x.l}</div></div>))}
+</div>):(<div style={{fontSize:13,color:"#ddd"}}>Sign in to see your games.</div>)}
+</div>
+<div className="ai-card"><div className="ai-label">⚖️ Team Picker</div>
+{next?(<div style={{fontSize:13,color:"#ddd",lineHeight:1.7}}>Your next game: <span className="gold">{next.title}</span> ({next.date})
+<div style={{display:"flex",gap:10,marginTop:8}}>{teams.map((t,i)=>(<div key={i} style={{flex:1,background:"rgba(0,0,0,0.3)",borderRadius:8,padding:8}}><div style={{fontSize:11,color:"var(--gold)",marginBottom:4}}>{i?"Bibs":"Non-bibs"}</div>{t.length?t.map((n,j)=><div key={j} style={{fontSize:12}}>{n}</div>):<div style={{fontSize:12,color:"var(--muted)"}}>—</div>}</div>))}</div>
+</div>):(<div style={{fontSize:13,color:"#ddd"}}>Join a game and we'll split the players into two teams here.</div>)}
+</div>
+</>);
+})()}
 </div>
 {}
 <div className={"screen fade-up"+(screen==="profile"?" active":"")} id="s-profile">
