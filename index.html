@@ -68,7 +68,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc, where, runTransaction, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc, where, runTransaction, deleteDoc, setDoc, increment, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     const firebaseConfig = {
       apiKey: "AIzaSyA53AV8jLn1mkV1KbYAg-azpKxI5hkLMdY",
       authDomain: "golden-boot-5d3a9.firebaseapp.com",
@@ -82,7 +82,7 @@
     const db = getFirestore(app);
     window._gbAuth = auth;
     window._gbDb = db;
-    window._gbFirestore = { collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc, where, runTransaction, deleteDoc };
+    window._gbFirestore = { collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy, serverTimestamp, getDoc, where, runTransaction, deleteDoc, setDoc, increment, getDocs };
     window._gbAuthFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail };
     window._gbReady = true;
     window.dispatchEvent(new Event("firebase-ready"));
@@ -727,114 +727,131 @@ await updateDoc(doc(window._gbDb,"notifications",n.id),{read:true});
 setUnreadCount(0);
 }catch(e){}
 }
+// Each user has exactly one wallet: wallets/{uid}.
+// Older versions made a new random-ID wallet doc on every top-up/refund, so the
+// balance never added up. On first load we carry the newest old balance over once.
 function loadWallet(uid){
-const {collection,onSnapshot,query,where}=window._gbFirestore;
+const {collection,onSnapshot,query,where,doc,getDocs,setDoc,serverTimestamp}=window._gbFirestore;
+const db=window._gbDb;
+const ref=doc(db,"wallets",uid);
 try{
-const q=query(collection(window._gbDb,"wallets"),where("uid","==",uid));
 if(walletUnsubRef.current)walletUnsubRef.current();
-walletUnsubRef.current=onSnapshot(q,snap=>{
+let migrated=false;
+walletUnsubRef.current=onSnapshot(ref,async snap=>{
+if(snap.exists()){setWalletBalance(Number(snap.data().balance)||0);return;}
+setWalletBalance(0);
+if(migrated)return;
+migrated=true;
+try{
+const {getDocs}=window._gbFirestore;
+const old=await getDocs(query(collection(db,"wallets"),where("uid","==",uid)));
 const t=w=>w.createdAt&&w.createdAt.toMillis?w.createdAt.toMillis():(Date.parse(w.createdAt)||0);
-const userWallet=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>t(b)-t(a))[0];
-setWalletBalance(userWallet?.balance||0);
+const newest=old.docs.map(d=>d.data()).sort((x,y)=>t(y)-t(x))[0];
+if(newest&&Number(newest.balance)>0){
+await setDoc(ref,{uid,balance:Number(newest.balance),createdAt:serverTimestamp(),updatedAt:serverTimestamp()},{merge:true});
+}
+}catch(e){console.log("Wallet migrate error:",e);}
 });
 }catch(e){console.log("Wallet error:",e);}
 }
+async function creditWallet(uid,amount){
+const {doc,setDoc,increment,serverTimestamp}=window._gbFirestore;
+await setDoc(doc(window._gbDb,"wallets",uid),{uid,balance:increment(amount),updatedAt:serverTimestamp()},{merge:true});
+}
 async function topUpWallet(amount){
 if(!user)return showToast("Please sign in first!");
-if(!amount||parseFloat(amount)<=0)return showToast("Please enter a valid amount!");
+const amt=Math.round(parseFloat(amount)*100)/100;
+if(!amt||amt<=0)return showToast("Please enter a valid amount!");
+if(walletLoading)return;
 setWalletLoading(true);
 try{
-const {collection,addDoc,serverTimestamp,doc,updateDoc,getDoc}=window._gbFirestore;
-const db=window._gbDb;
-const walletsSnap=await getDoc(doc(db,"wallets",user.uid));
-if(walletsSnap.exists()){
-const current=walletsSnap.data().balance||0;
-await updateDoc(doc(db,"wallets",user.uid),{
-balance:current+parseFloat(amount),
-updatedAt:serverTimestamp()
-});
-}else{
-await addDoc(collection(db,"wallets"),{
-uid:user.uid,
-name:user.displayName||user.email,
-balance:parseFloat(amount),
-createdAt:serverTimestamp()
-});
-}
-setWalletBalance(prev=>prev+parseFloat(amount));
+await creditWallet(user.uid,amt);
 setWalletTopUp("");
-setWalletLoading(false);
-showToast(`£${parseFloat(amount).toFixed(2)} added to your wallet! 💰`);
-await sendNotification(user.uid,"💰 Wallet Top Up","£"+parseFloat(amount).toFixed(2)+" has been added to your Golden Boot wallet!","success");
+showToast(`£${amt.toFixed(2)} added to your wallet! 💰`);
+sendNotification(user.uid,"💰 Wallet Top Up","£"+amt.toFixed(2)+" has been added to your Golden Boot wallet!","success");
 }catch(e){
-setWalletLoading(false);
+console.log("Top up error:",e);
 showToast("Error topping up wallet. Try again.");
 }
+setWalletLoading(false);
 }
 async function payFromWallet(game){
 if(!user)return showToast("Please sign in first!");
 const price=playerPrice(game);
-if(walletBalance<price)return showToast(`Insufficient wallet balance. You need £${price.toFixed(2)} but have £${walletBalance.toFixed(2)}.`);
-try{
-const {doc,updateDoc,arrayUnion,getDoc}=window._gbFirestore;
+const {doc,runTransaction}=window._gbFirestore;
 const db=window._gbDb;
-const walletSnap=await getDoc(doc(db,"wallets",user.uid));
-if(walletSnap.exists()){
-await updateDoc(doc(db,"wallets",user.uid),{
-balance:walletBalance-price,
-updatedAt:new Date().toISOString()
+const wRef=doc(db,"wallets",user.uid);
+const gRef=doc(db,"games",game.id);
+try{
+const result=await runTransaction(db,async tx=>{
+const w=await tx.get(wRef);
+const g=await tx.get(gRef);
+if(!g.exists())return "gone";
+const bal=w.exists()?Number(w.data().balance)||0:0;
+if(bal<price)return "funds";
+const data=g.data();
+const players=data.players||[];
+if(players.some(p=>p.uid===user.uid))return "already";
+if(players.length>=(FMT_SLOTS[data.format]||10))return "full";
+tx.update(wRef,{balance:Math.round((bal-price)*100)/100});
+tx.update(gRef,{players:[...players,{name:user.displayName||user.email,uid:user.uid,pos:"Player",level:"Casual",paid:{method:"wallet",amount:price}}]});
+return "ok";
 });
-}
-await updateDoc(doc(db,"games",game.id),{
-players:arrayUnion({name:user.displayName||user.email,uid:user.uid,pos:"Player",level:"Casual"})
-});
-setWalletBalance(prev=>prev-price);
+if(result==="funds")return showToast(`Insufficient wallet balance. You need £${price.toFixed(2)}.`);
+if(result==="already")return showToast("You're already in this game!");
+if(result==="full")return showToast("Sorry, this game just filled up — join the waitlist!");
+if(result==="gone")return showToast("This game no longer exists.");
 setPayDone(true);
 setTimeout(()=>{setPayScreen(false);setPayDone(false);},1200);
 showToast("Paid from wallet! You're in! 🏆");
-await sendNotification(user.uid,"✅ Joined via Wallet!",`You paid £${price.toFixed(2)} from your Golden Boot wallet to join "${game.title}". Remaining balance: £${(walletBalance-price).toFixed(2)} — Golden Boot 🏆`,"success");
-await sendNotification(game.hostUid,"🏃 New player joined!",`${user.displayName||"A player"} has joined "${game.title}". You now have ${(game.players||[]).length+1} players signed up!`,"info");
-}catch(e){showToast("Error paying from wallet.");}
+sendNotification(user.uid,"✅ Joined via Wallet!",`You paid £${price.toFixed(2)} from your Golden Boot wallet to join "${game.title}".`,"success");
+sendNotification(game.hostUid,"🏃 New player joined!",`${user.displayName||"A player"} has joined "${game.title}".`,"info");
+}catch(e){console.log("Wallet pay error:",e);showToast("Error paying from wallet.");}
 }
 async function handleDropout(game){
 if(!user||busy)return;
 const locked=dropoutLocked(game);
+const me=(game.players||[]).find(p=>p.uid===user.uid);
+const paidAmount=me&&me.paid&&me.paid.method==="wallet"?Number(me.paid.amount)||0:0;
 if(!window.confirm(locked?
 "⚠️ You are dropping out within 24 hours of kickoff. You will NOT receive a refund — your payment is forfeited. Your spot will reopen at £1 for another player. Are you sure?":
-"Are you sure you want to leave this game? You will receive a refund to your wallet."
+paidAmount>0?`Are you sure you want to leave this game? £${paidAmount.toFixed(2)} will be refunded to your wallet.`:"Are you sure you want to leave this game?"
 ))return;
 const {doc,updateDoc,runTransaction}=window._gbFirestore;
 const db=window._gbDb;
 setBusy("leave");
 try{
 const ref=doc(db,"games",game.id);
-const removed=await runTransaction(db,async tx=>{
+const wRef=doc(db,"wallets",user.uid);
+const refund=await runTransaction(db,async tx=>{
 const snap=await tx.get(ref);
-if(!snap.exists())return false;
+const w=await tx.get(wRef);
+if(!snap.exists())return null;
 const data=snap.data();
 const players=data.players||[];
-if(!players.some(p=>p.uid===user.uid))return false;
+const mine=players.find(p=>p.uid===user.uid);
+if(!mine)return null;
 const upd={players:players.filter(p=>p.uid!==user.uid)};
 if(locked)upd.prepaidSpots=(data.prepaidSpots||0)+1;
 tx.update(ref,upd);
-return true;
+const amt=!locked&&mine.paid&&mine.paid.method==="wallet"?Number(mine.paid.amount)||0:0;
+if(amt>0){
+const bal=w.exists()?Number(w.data().balance)||0:0;
+tx.set(wRef,{uid:user.uid,balance:Math.round((bal+amt)*100)/100},{merge:true});
+}
+return amt;
 });
+const removed=refund!==null;
 setBusy("");
 if(!removed){showToast("You're not in this game any more.");go("games");return;}
 go("games");
 if(!locked){
-const price=playerPrice(game);
-try{
-const walletSnap=await window._gbFirestore.getDoc(doc(db,"wallets",user.uid));
-if(walletSnap.exists()){
-await updateDoc(doc(db,"wallets",user.uid),{balance:(walletSnap.data().balance||0)+price});
+if(refund>0){
+sendNotification(user.uid,"🔄 Refund to Wallet",`£${refund.toFixed(2)} has been refunded to your Golden Boot wallet after leaving "${game.title}".`,"success");
+showToast(`You've left the game. £${refund.toFixed(2)} refunded to your wallet 💰`);
 }else{
-await window._gbFirestore.addDoc(window._gbFirestore.collection(db,"wallets"),{uid:user.uid,name:user.displayName||user.email,balance:price,createdAt:new Date().toISOString()});
+showToast("You've left the game.");
 }
-setWalletBalance(prev=>prev+price);
-sendNotification(user.uid,"🔄 Refund to Wallet",`£${price.toFixed(2)} has been refunded to your Golden Boot wallet after leaving "${game.title}".`,"success");
-showToast("You've left the game. Refund added to your wallet! 💰");
-}catch(e){showToast("You've left the game, but the refund didn't go through. Please contact us.");}
 }else{
 sendNotification(user.uid,"⚠️ No Refund — Late Dropout",`You dropped out of "${game.title}" within 24 hours of kickoff. No refund has been issued as per our late dropout policy.`,"warning");
 showToast("You have left the game. No refund as per late dropout policy.");
