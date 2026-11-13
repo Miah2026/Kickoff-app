@@ -1,5 +1,6 @@
-// Golden Boot Service Worker v1.0
-const CACHE_NAME = 'golden-boot-v1';
+// Golden Boot Service Worker v1.1
+// Bump CACHE_NAME whenever you want every installed copy to drop its old cache.
+const CACHE_NAME = 'golden-boot-v2';
 const OFFLINE_URL = '/';
 
 const ASSETS_TO_CACHE = [
@@ -44,6 +45,21 @@ self.addEventListener('fetch', event => {
     url.includes('cdnjs') ||
     url.includes('gstatic')
   ) {
+    return;
+  }
+
+  // Pages: network first, so a new deploy shows up straight away.
+  // The cached copy is only used when offline.
+  if (event.request.mode === 'navigate' || url.endsWith('/index.html')) {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(OFFLINE_URL, clone));
+        }
+        return response;
+      }).catch(() => caches.match(OFFLINE_URL))
+    );
     return;
   }
 
